@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
-  runApp(const GameDevApp());
+  runApp(const MyApp());
 }
 
-class GameDevApp extends StatelessWidget {
-  const GameDevApp({super.key});
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -58,7 +58,7 @@ class _GameDevWelcomeScreenState extends State<GameDevWelcomeScreen>
   void initState() {
     super.initState();
 
-    // Entrance Animation (1200ms)
+    // Entrance Animation (1400ms)
     _entranceController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1400),
@@ -100,7 +100,7 @@ class _GameDevWelcomeScreenState extends State<GameDevWelcomeScreen>
       curve: const Interval(0.65, 1.0, curve: Curves.easeOutCubic),
     ));
 
-    // Floating / Breathing glow loop (2.4s)
+    // Floating / Breathing glow loop (2400ms)
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2400),
