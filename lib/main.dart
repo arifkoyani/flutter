@@ -522,7 +522,7 @@ class _GameDevWelcomeScreenState extends State<GameDevWelcomeScreen>
     return const Padding(
       padding: EdgeInsets.symmetric(horizontal: 16.0),
       child: Text(
-        'Craft engaging worlds, master game mechanics, and transform pure imagination into playable reality.',
+        'develop mechanics, and transform pure imagination into playable reality.',
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: 14.5,
@@ -539,13 +539,13 @@ class _GameDevWelcomeScreenState extends State<GameDevWelcomeScreen>
       (
         icon: Icons.palette_outlined,
         color: const Color(0xFFFF7675),
-        title: 'Design & World',
+        title: 'develop game ju',
         desc: 'Levels, visual assets & story dynamics',
       ),
       (
         icon: Icons.terminal_rounded,
         color: const Color(0xFF00D2D3),
-        title: 'Game Logic',
+        title: 'develop game',
         desc: 'Physics engines, player controls & state',
       ),
       (
