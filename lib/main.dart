@@ -539,7 +539,7 @@ class _GameDevWelcomeScreenState extends State<GameDevWelcomeScreen>
       (
         icon: Icons.palette_outlined,
         color: const Color(0xFFFF7675),
-        title: 'develop game ju',
+        title: 'game ju',
         desc: 'Levels, visual assets & story dynamics',
       ),
       (
