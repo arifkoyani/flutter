@@ -69,24 +69,24 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         _mistakes++;
       });
 
-      if (PreferencesService.instance.isSoundOn) {
-        AudioService.instance.playMistakeSound();
-      }
       if (PreferencesService.instance.isVibrationOn) {
         HapticFeedback.mediumImpact();
       }
 
       if (_mistakes >= _level.maxMistakes) {
-        if (PreferencesService.instance.isSoundOn) {
-          AudioService.instance.playGameOverSound();
-        }
+        AudioService.instance.playGameOverSound();
         _handleGameOver();
+      } else {
+        AudioService.instance.playMistakeSound();
       }
     }
   }
 
   Future<void> _handleVictory() async {
     _isVictory = true;
+
+    // Play stage complete win sound effect
+    AudioService.instance.playWinSound();
 
     // Calculate stars: 0 mistakes = 3 stars, 1 = 2 stars, 2 = 1 star
     final starsEarned = _mistakes == 0

@@ -1,56 +1,61 @@
 import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/foundation.dart';
 
 /// Service managing background music and game sound effects
 class AudioService {
   static final AudioService instance = AudioService._internal();
   AudioService._internal();
 
-  final AudioPlayer _musicPlayer = AudioPlayer();
-  final AudioPlayer _sfxPlayer = AudioPlayer();
+  final AudioPlayer _musicPlayer = AudioPlayer(playerId: 'bg_music');
+  final AudioPlayer _mistakePlayer = AudioPlayer(playerId: 'sfx_mistake');
+  final AudioPlayer _gameOverPlayer = AudioPlayer(playerId: 'sfx_game_over');
+  final AudioPlayer _winPlayer = AudioPlayer(playerId: 'sfx_win');
 
   bool _isInitialized = false;
   bool _isMusicPlaying = false;
+  bool _isMusicOn = false;
   bool _isSoundOn = true;
 
   bool get isMusicPlaying => _isMusicPlaying;
+  bool get isMusicOn => _isMusicOn;
   bool get isSoundOn => _isSoundOn;
-
-  /// Update sound effects enabled state
-  void setSoundOn(bool enable) {
-    _isSoundOn = enable;
-    if (!enable) {
-      _sfxPlayer.stop();
-    }
-  }
 
   /// Initialize audio player settings for background music and game effects
   Future<void> init() async {
     if (_isInitialized) return;
     try {
       await _musicPlayer.setReleaseMode(ReleaseMode.loop);
-      
-      // Configure audio stream for game music so hardware volume buttons control media volume
-      final AudioContext audioContext = AudioContext(
-        android: const AudioContextAndroid(
-          isSpeakerphoneOn: false,
-          stayAwake: true,
-          contentType: AndroidContentType.music,
-          usageType: AndroidUsageType.game,
-          audioFocus: AndroidAudioFocus.gain,
-        ),
-        iOS: AudioContextIOS(
-          category: AVAudioSessionCategory.ambient,
-        ),
-      );
-      await _musicPlayer.setAudioContext(audioContext);
+      await _musicPlayer.setVolume(1.0);
+
+      // Low latency mode for responsive game sound effects
+      await _mistakePlayer.setPlayerMode(PlayerMode.lowLatency);
+      await _mistakePlayer.setVolume(1.0);
+
+      await _gameOverPlayer.setPlayerMode(PlayerMode.lowLatency);
+      await _gameOverPlayer.setVolume(1.0);
+
+      await _winPlayer.setPlayerMode(PlayerMode.lowLatency);
+      await _winPlayer.setVolume(1.0);
+
       _isInitialized = true;
-    } catch (_) {
-      // In headless test environments native platform channels are ignored
+    } catch (e) {
+      debugPrint('AudioService init note: $e');
+    }
+  }
+
+  /// Update sound effects enabled state
+  void setSoundOn(bool enable) {
+    _isSoundOn = enable;
+    if (!enable) {
+      _mistakePlayer.stop();
+      _gameOverPlayer.stop();
+      _winPlayer.stop();
     }
   }
 
   /// Turn background music on or off
   Future<void> setMusicOn(bool enable) async {
+    _isMusicOn = enable;
     if (enable) {
       await playBackgroundMusic();
     } else {
@@ -64,11 +69,13 @@ class AudioService {
       if (!_isInitialized) {
         await init();
       }
+      await _musicPlayer.stop();
       await _musicPlayer.setReleaseMode(ReleaseMode.loop);
+      await _musicPlayer.setVolume(1.0);
       await _musicPlayer.play(AssetSource('audio/background_music.mp3'));
       _isMusicPlaying = true;
-    } catch (_) {
-      // Safe fallback
+    } catch (e) {
+      debugPrint('Error playing background music: $e');
     }
   }
 
@@ -77,8 +84,8 @@ class AudioService {
     try {
       await _musicPlayer.stop();
       _isMusicPlaying = false;
-    } catch (_) {
-      // Safe fallback
+    } catch (e) {
+      debugPrint('Error stopping background music: $e');
     }
   }
 
@@ -86,26 +93,35 @@ class AudioService {
   Future<void> playMistakeSound() async {
     if (!_isSoundOn) return;
     try {
-      await _sfxPlayer.stop();
-      await _sfxPlayer.play(AssetSource('audio/mistake_sound.mp3'));
-    } catch (_) {}
+      await _mistakePlayer.stop();
+      await _mistakePlayer.setVolume(1.0);
+      await _mistakePlayer.play(AssetSource('audio/mistake_sound.mp3'));
+    } catch (e) {
+      debugPrint('Error playing mistake sound: $e');
+    }
   }
 
   /// Play game over sound effect
   Future<void> playGameOverSound() async {
     if (!_isSoundOn) return;
     try {
-      await _sfxPlayer.stop();
-      await _sfxPlayer.play(AssetSource('audio/game_over_sound.mp3'));
-    } catch (_) {}
+      await _gameOverPlayer.stop();
+      await _gameOverPlayer.setVolume(1.0);
+      await _gameOverPlayer.play(AssetSource('audio/game_over_sound.mp3'));
+    } catch (e) {
+      debugPrint('Error playing game over sound: $e');
+    }
   }
 
   /// Play win sound effect on stage completion
   Future<void> playWinSound() async {
     if (!_isSoundOn) return;
     try {
-      await _sfxPlayer.stop();
-      await _sfxPlayer.play(AssetSource('audio/win_sound.mp3'));
-    } catch (_) {}
+      await _winPlayer.stop();
+      await _winPlayer.setVolume(1.0);
+      await _winPlayer.play(AssetSource('audio/win_sound.mp3'));
+    } catch (e) {
+      debugPrint('Error playing win sound: $e');
+    }
   }
 }

@@ -11,18 +11,24 @@ class SettingScreen extends StatefulWidget {
 }
 
 class _SettingScreenState extends State<SettingScreen> {
-  late bool _isSoundOn;
-  late bool _isVibrationOn;
-  late bool _isMusicOn;
-
   static const Color primaryOrange = Color(0xFFFF550D);
 
   @override
   void initState() {
     super.initState();
-    _isSoundOn = PreferencesService.instance.isSoundOn;
-    _isVibrationOn = PreferencesService.instance.isVibrationOn;
-    _isMusicOn = PreferencesService.instance.isMusicOn;
+    PreferencesService.instance.addListener(_onPreferencesChanged);
+  }
+
+  @override
+  void dispose() {
+    PreferencesService.instance.removeListener(_onPreferencesChanged);
+    super.dispose();
+  }
+
+  void _onPreferencesChanged() {
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   @override
@@ -74,9 +80,8 @@ class _SettingScreenState extends State<SettingScreen> {
                 icon: Icons.volume_up_rounded,
                 title: 'Sound',
                 subtitle: 'Game sound effects',
-                value: _isSoundOn,
+                value: PreferencesService.instance.isSoundOn,
                 onChanged: (val) {
-                  setState(() => _isSoundOn = val);
                   PreferencesService.instance.setSoundOn(val);
                 },
               ),
@@ -88,9 +93,8 @@ class _SettingScreenState extends State<SettingScreen> {
                 icon: Icons.vibration_rounded,
                 title: 'Vibration',
                 subtitle: 'Haptic feedback on actions',
-                value: _isVibrationOn,
+                value: PreferencesService.instance.isVibrationOn,
                 onChanged: (val) {
-                  setState(() => _isVibrationOn = val);
                   PreferencesService.instance.setVibrationOn(val);
                 },
               ),
@@ -102,9 +106,8 @@ class _SettingScreenState extends State<SettingScreen> {
                 icon: Icons.music_note_rounded,
                 title: 'Music',
                 subtitle: 'Background soundtrack',
-                value: _isMusicOn,
+                value: PreferencesService.instance.isMusicOn,
                 onChanged: (val) {
-                  setState(() => _isMusicOn = val);
                   PreferencesService.instance.setMusicOn(val);
                 },
               ),
@@ -166,58 +169,59 @@ class _SettingScreenState extends State<SettingScreen> {
     required bool value,
     required ValueChanged<bool> onChanged,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFAFAFA),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEEEEEE), width: 1.2),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: value
-                  ? primaryOrange.withValues(alpha: 0.12)
-                  : const Color(0xFFF0F0F0),
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFAFAFA),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEEEEEE), width: 1.2),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: value
+                    ? primaryOrange.withValues(alpha: 0.12)
+                    : const Color(0xFFF0F0F0),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: value ? primaryOrange : const Color(0xFF777777),
+                size: 24,
+              ),
             ),
-            child: Icon(
-              icon,
-              color: value ? primaryOrange : const Color(0xFF777777),
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  style: const TextStyle(
-                    fontSize: 12.5,
-                    color: Color(0xFF777777),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: Color(0xFF777777),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          // Left-Right animated sliding toggle button
-          GestureDetector(
-            onTap: () => onChanged(!value),
-            child: AnimatedContainer(
+            // Left-Right animated sliding toggle button
+            AnimatedContainer(
               duration: const Duration(milliseconds: 240),
               curve: Curves.easeInOut,
               width: 54,
@@ -249,8 +253,8 @@ class _SettingScreenState extends State<SettingScreen> {
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
