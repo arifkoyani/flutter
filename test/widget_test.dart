@@ -1,16 +1,28 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:my_android_app/main.dart';
 
 void main() {
-  testWidgets('Game Dev Welcome Screen smoke test', (WidgetTester tester) async {
-    // Build our app and trigger frames for entrance animation
+  testWidgets('Navigation smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
-    await tester.pump(const Duration(milliseconds: 1500));
 
-    // Verify key texts and icons are present
-    expect(find.text('Welcome to the'), findsOneWidget);
-    expect(find.text('Start Development'), findsOneWidget);
-    expect(find.byIcon(Icons.gamepad_rounded), findsOneWidget);
+    // Verify Main Screen elements
+    expect(find.text('Select a Screen'), findsOneWidget);
+    expect(find.text('Screen 1'), findsOneWidget);
+    expect(find.text('Screen 2'), findsOneWidget);
+
+    // Tap Screen 1 and verify navigation
+    await tester.tap(find.text('Screen 1'));
+    await tester.pumpAndSettle();
+    expect(find.text('welcome to screen 1'), findsOneWidget);
+
+    // Tap Go to Screen 2 and verify navigation
+    await tester.tap(find.text('Go to Screen 2'));
+    await tester.pumpAndSettle();
+    expect(find.text('welcome to screen 2'), findsOneWidget);
+
+    // Tap Back to Main Screen and verify navigation
+    await tester.tap(find.text('Back to Main Screen'));
+    await tester.pumpAndSettle();
+    expect(find.text('Select a Screen'), findsOneWidget);
   });
 }
