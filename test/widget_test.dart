@@ -2,27 +2,29 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:my_android_app/main.dart';
 
 void main() {
-  testWidgets('Navigation smoke test', (WidgetTester tester) async {
+  testWidgets('Full automatic flow: Splash -> Amaze -> Dashboard',
+      (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
-    // Verify Main Screen elements
-    expect(find.text('Select a Screen'), findsOneWidget);
-    expect(find.text('Screen 1'), findsOneWidget);
-    expect(find.text('Screen 2'), findsOneWidget);
+    // 1. Splash screen displays "Weconnect Games"
+    expect(find.text('Weconnect Games'), findsOneWidget);
 
-    // Tap Screen 1 and verify navigation
-    await tester.tap(find.text('Screen 1'));
+    // 2. Splash finishes loading (2.2s) and navigates to AmazeScreen
+    await tester.pump(const Duration(milliseconds: 2300));
     await tester.pumpAndSettle();
-    expect(find.text('welcome to screen 1'), findsOneWidget);
 
-    // Tap Go to Screen 2 and verify navigation
-    await tester.tap(find.text('Go to Screen 2'));
-    await tester.pumpAndSettle();
-    expect(find.text('welcome to screen 2'), findsOneWidget);
+    // Verify AmazeScreen texts
+    expect(
+      find.text('one rouhd is all it take, cool!\nyour mood right down.'),
+      findsOneWidget,
+    );
+    expect(find.text('---Amaze GO!'), findsOneWidget);
 
-    // Tap Back to Main Screen and verify navigation
-    await tester.tap(find.text('Back to Main Screen'));
+    // 3. AmazeScreen finishes timer (2.5s) and navigates to DashboardScreen
+    await tester.pump(const Duration(milliseconds: 2600));
     await tester.pumpAndSettle();
-    expect(find.text('Select a Screen'), findsOneWidget);
+
+    // Verify DashboardScreen text
+    expect(find.text('welcome to go arrow game '), findsOneWidget);
   });
 }
