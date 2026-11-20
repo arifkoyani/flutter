@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import 'settings/setting.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -7,9 +8,32 @@ class DashboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
+    return Scaffold(
       backgroundColor: Colors.black,
-      body: SafeArea(
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(
+              Icons.settings_rounded,
+              color: primaryOrange,
+              size: 28,
+            ),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingScreen(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: const SafeArea(
         child: Center(
           child: Padding(
             padding: EdgeInsets.symmetric(horizontal: 24.0),

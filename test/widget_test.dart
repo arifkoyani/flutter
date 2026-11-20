@@ -1,5 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:my_android_app/main.dart';
+import 'package:my_android_app/screens/settings/setting.dart';
+import 'package:my_android_app/screens/settings/privacy_policy.dart';
+import 'package:my_android_app/screens/settings/terms_of_service.dart';
 
 void main() {
   testWidgets('Full automatic flow: Splash -> Amaze -> Dashboard',
@@ -26,5 +30,42 @@ void main() {
 
     // Verify DashboardScreen text
     expect(find.text('welcome to go arrow game '), findsOneWidget);
+  });
+
+  testWidgets('Settings screen UI and navigation test',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: SettingScreen(),
+      ),
+    );
+
+    // Verify Setting toggles and labels
+    expect(find.text('Settings'), findsOneWidget);
+    expect(find.text('Sound'), findsOneWidget);
+    expect(find.text('Vibration'), findsOneWidget);
+    expect(find.text('Music'), findsOneWidget);
+    expect(find.text('Privacy Policy'), findsOneWidget);
+    expect(find.text('Terms of Service'), findsOneWidget);
+
+    // Tap Privacy Policy and verify navigation
+    await tester.tap(find.text('Privacy Policy'));
+    await tester.pumpAndSettle();
+    expect(find.byType(PrivacyPolicyScreen), findsOneWidget);
+
+    // Tap AppBar Back button
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingScreen), findsOneWidget);
+
+    // Tap Terms of Service and verify navigation
+    await tester.tap(find.text('Terms of Service'));
+    await tester.pumpAndSettle();
+    expect(find.byType(TermsOfServiceScreen), findsOneWidget);
+
+    // Tap AppBar Back button
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingScreen), findsOneWidget);
   });
 }
