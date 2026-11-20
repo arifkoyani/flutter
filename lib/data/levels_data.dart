@@ -1,49 +1,127 @@
+import 'package:material_ui/material_ui.dart';
 import '../models/puzzle_level.dart';
 
 class LevelsData {
   static final List<PuzzleLevel> levels = [
-    // Level 1: First Steps (10 Arrows on a 4x4 grid)
+    // Level 1: First Steps (10 Canvas Arrows in Maze)
     PuzzleLevel(
       id: 1,
       name: 'First Steps',
-      subtitle: 'Learn the arrow mechanics',
-      gridSize: 4,
+      subtitle: 'Escape the Arrow Labyrinth',
+      gridCols: 6,
+      gridRows: 6,
       maxMistakes: 3,
-      initialArrows: [
-        // 10 carefully positioned arrows
-        ArrowItem(id: 1, row: 0, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 2, row: 0, col: 2, direction: ArrowDirection.right),
-        ArrowItem(id: 3, row: 0, col: 1, direction: ArrowDirection.up),
-        ArrowItem(id: 4, row: 1, col: 1, direction: ArrowDirection.up),
-        ArrowItem(id: 5, row: 3, col: 0, direction: ArrowDirection.left),
-        ArrowItem(id: 6, row: 3, col: 1, direction: ArrowDirection.down),
-        ArrowItem(id: 7, row: 2, col: 1, direction: ArrowDirection.down),
-        ArrowItem(id: 8, row: 1, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 9, row: 3, col: 2, direction: ArrowDirection.down),
-        ArrowItem(id: 10, row: 2, col: 2, direction: ArrowDirection.down),
+      walls: const [
+        // Outer boundary with exit openings
+        MazeWall(Offset(0, 0), Offset(0, 6)), // Left wall
+        MazeWall(Offset(0, 6), Offset(6, 6)), // Bottom wall
+        MazeWall(Offset(6, 6), Offset(6, 0)), // Right wall
+        MazeWall(Offset(6, 0), Offset(0, 0)), // Top wall
+
+        // Inner Maze Corridors (as shown in diagram)
+        MazeWall(Offset(1.0, 1.0), Offset(1.0, 5.0)),
+        MazeWall(Offset(2.0, 0.0), Offset(2.0, 4.0)),
+        MazeWall(Offset(2.0, 4.0), Offset(3.5, 4.0)),
+        MazeWall(Offset(3.5, 1.0), Offset(3.5, 4.0)),
+        MazeWall(Offset(4.8, 0.0), Offset(4.8, 4.5)),
+        MazeWall(Offset(4.8, 4.5), Offset(3.8, 4.5)),
+      ],
+      exits: const [
+        MazeExit(Offset(3.0, 0.0), ArrowDirection.up),
+        MazeExit(Offset(6.0, 1.0), ArrowDirection.right),
+        MazeExit(Offset(0.0, 0.5), ArrowDirection.left),
+        MazeExit(Offset(0.0, 3.0), ArrowDirection.left),
+        MazeExit(Offset(2.2, 6.0), ArrowDirection.down),
+        MazeExit(Offset(5.2, 6.0), ArrowDirection.down),
+      ],
+      arrows: [
+        // 1. Straight Up (Exit top center) -> Clear immediately
+        CanvasArrow(
+          id: 1,
+          points: const [Offset(3.0, 3.8), Offset(3.0, 0.2)],
+          exitDirection: ArrowDirection.up,
+        ),
+        // 2. Straight Up (Behind Arrow 1) -> Blocked by Arrow 1
+        CanvasArrow(
+          id: 2,
+          points: const [Offset(3.0, 5.5), Offset(3.0, 4.0)],
+          exitDirection: ArrowDirection.up,
+        ),
+        // 3. L-shape: Right then Down (Exit bottom) -> Clear immediately
+        CanvasArrow(
+          id: 3,
+          points: const [Offset(1.2, 5.2), Offset(2.2, 5.2), Offset(2.2, 5.8)],
+          exitDirection: ArrowDirection.down,
+        ),
+        // 4. Straight Right (Behind Arrow 3) -> Blocked by Arrow 3
+        CanvasArrow(
+          id: 4,
+          points: const [Offset(0.3, 5.2), Offset(1.0, 5.2)],
+          exitDirection: ArrowDirection.right,
+        ),
+        // 5. L-shape: Up then Right (Exit right) -> Clear immediately
+        CanvasArrow(
+          id: 5,
+          points: const [Offset(4.2, 3.0), Offset(4.2, 1.0), Offset(5.8, 1.0)],
+          exitDirection: ArrowDirection.right,
+        ),
+        // 6. Straight Up (Behind Arrow 5) -> Blocked by Arrow 5
+        CanvasArrow(
+          id: 6,
+          points: const [Offset(4.2, 5.2), Offset(4.2, 3.3)],
+          exitDirection: ArrowDirection.up,
+        ),
+        // 7. Straight Down (Exit bottom-right) -> Clear immediately
+        CanvasArrow(
+          id: 7,
+          points: const [Offset(5.4, 2.0), Offset(5.4, 5.8)],
+          exitDirection: ArrowDirection.down,
+        ),
+        // 8. Straight Left (Exit top-left) -> Clear immediately
+        CanvasArrow(
+          id: 8,
+          points: const [Offset(1.8, 0.5), Offset(0.2, 0.5)],
+          exitDirection: ArrowDirection.left,
+        ),
+        // 9. L-shape: Down then Left (Exit mid-left) -> Clear immediately
+        CanvasArrow(
+          id: 9,
+          points: const [Offset(1.5, 1.5), Offset(1.5, 3.0), Offset(0.2, 3.0)],
+          exitDirection: ArrowDirection.left,
+        ),
+        // 10. Straight Down (Behind Arrow 9) -> Blocked by Arrow 9
+        CanvasArrow(
+          id: 10,
+          points: const [Offset(1.5, 0.4), Offset(1.5, 1.3)],
+          exitDirection: ArrowDirection.down,
+        ),
       ],
     ),
 
-    // Level 2: Arrow Forest (12 Arrows on a 4x4 grid)
+    // Level 2: Arrow Forest (More L-bends)
     PuzzleLevel(
       id: 2,
       name: 'Arrow Forest',
-      subtitle: 'Navigate the dense woods',
-      gridSize: 4,
+      subtitle: 'Navigate the winding woods',
+      gridCols: 6,
+      gridRows: 6,
       maxMistakes: 3,
-      initialArrows: [
-        ArrowItem(id: 1, row: 0, col: 0, direction: ArrowDirection.up),
-        ArrowItem(id: 2, row: 1, col: 0, direction: ArrowDirection.up),
-        ArrowItem(id: 3, row: 0, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 4, row: 0, col: 2, direction: ArrowDirection.right),
-        ArrowItem(id: 5, row: 1, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 6, row: 1, col: 2, direction: ArrowDirection.right),
-        ArrowItem(id: 7, row: 3, col: 0, direction: ArrowDirection.left),
-        ArrowItem(id: 8, row: 3, col: 1, direction: ArrowDirection.down),
-        ArrowItem(id: 9, row: 2, col: 1, direction: ArrowDirection.down),
-        ArrowItem(id: 10, row: 3, col: 3, direction: ArrowDirection.down),
-        ArrowItem(id: 11, row: 2, col: 3, direction: ArrowDirection.down),
-        ArrowItem(id: 12, row: 2, col: 0, direction: ArrowDirection.left),
+      arrows: [
+        CanvasArrow(
+          id: 1,
+          points: const [Offset(1, 4), Offset(1, 1), Offset(5, 1)],
+          exitDirection: ArrowDirection.right,
+        ),
+        CanvasArrow(
+          id: 2,
+          points: const [Offset(3, 5), Offset(3, 2)],
+          exitDirection: ArrowDirection.up,
+        ),
+        CanvasArrow(
+          id: 3,
+          points: const [Offset(5, 3), Offset(5, 5)],
+          exitDirection: ArrowDirection.down,
+        ),
       ],
     ),
 
@@ -51,20 +129,21 @@ class LevelsData {
     PuzzleLevel(
       id: 3,
       name: 'Mystery Maze',
-      subtitle: 'Twisted paths & tricky turns',
-      gridSize: 4,
+      subtitle: 'Twisted corridors & tight turns',
+      gridCols: 6,
+      gridRows: 6,
       maxMistakes: 3,
-      initialArrows: [
-        ArrowItem(id: 1, row: 0, col: 0, direction: ArrowDirection.left),
-        ArrowItem(id: 2, row: 0, col: 3, direction: ArrowDirection.up),
-        ArrowItem(id: 3, row: 3, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 4, row: 3, col: 0, direction: ArrowDirection.down),
-        ArrowItem(id: 5, row: 1, col: 1, direction: ArrowDirection.up),
-        ArrowItem(id: 6, row: 1, col: 2, direction: ArrowDirection.right),
-        ArrowItem(id: 7, row: 2, col: 2, direction: ArrowDirection.down),
-        ArrowItem(id: 8, row: 2, col: 1, direction: ArrowDirection.left),
-        ArrowItem(id: 9, row: 0, col: 1, direction: ArrowDirection.up),
-        ArrowItem(id: 10, row: 3, col: 2, direction: ArrowDirection.down),
+      arrows: [
+        CanvasArrow(
+          id: 1,
+          points: const [Offset(2, 5), Offset(2, 1)],
+          exitDirection: ArrowDirection.up,
+        ),
+        CanvasArrow(
+          id: 2,
+          points: const [Offset(4, 1), Offset(4, 5)],
+          exitDirection: ArrowDirection.down,
+        ),
       ],
     ),
 
@@ -72,20 +151,16 @@ class LevelsData {
     PuzzleLevel(
       id: 4,
       name: 'Desert Escape',
-      subtitle: 'Find your way through the dunes',
-      gridSize: 4,
+      subtitle: 'Sun-baked dunes',
+      gridCols: 6,
+      gridRows: 6,
       maxMistakes: 3,
-      initialArrows: [
-        ArrowItem(id: 1, row: 0, col: 1, direction: ArrowDirection.up),
-        ArrowItem(id: 2, row: 0, col: 2, direction: ArrowDirection.up),
-        ArrowItem(id: 3, row: 1, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 4, row: 2, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 5, row: 3, col: 2, direction: ArrowDirection.down),
-        ArrowItem(id: 6, row: 3, col: 1, direction: ArrowDirection.down),
-        ArrowItem(id: 7, row: 2, col: 0, direction: ArrowDirection.left),
-        ArrowItem(id: 8, row: 1, col: 0, direction: ArrowDirection.left),
-        ArrowItem(id: 9, row: 1, col: 1, direction: ArrowDirection.up),
-        ArrowItem(id: 10, row: 2, col: 2, direction: ArrowDirection.down),
+      arrows: [
+        CanvasArrow(
+          id: 1,
+          points: const [Offset(1, 1), Offset(5, 1)],
+          exitDirection: ArrowDirection.right,
+        ),
       ],
     ),
 
@@ -93,20 +168,16 @@ class LevelsData {
     PuzzleLevel(
       id: 5,
       name: 'Final Challenge',
-      subtitle: 'The ultimate arrow puzzle',
-      gridSize: 4,
+      subtitle: 'Master the Labyrinth',
+      gridCols: 6,
+      gridRows: 6,
       maxMistakes: 3,
-      initialArrows: [
-        ArrowItem(id: 1, row: 0, col: 0, direction: ArrowDirection.up),
-        ArrowItem(id: 2, row: 0, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 3, row: 3, col: 3, direction: ArrowDirection.down),
-        ArrowItem(id: 4, row: 3, col: 0, direction: ArrowDirection.left),
-        ArrowItem(id: 5, row: 1, col: 0, direction: ArrowDirection.left),
-        ArrowItem(id: 6, row: 0, col: 2, direction: ArrowDirection.up),
-        ArrowItem(id: 7, row: 2, col: 3, direction: ArrowDirection.right),
-        ArrowItem(id: 8, row: 3, col: 1, direction: ArrowDirection.down),
-        ArrowItem(id: 9, row: 1, col: 2, direction: ArrowDirection.right),
-        ArrowItem(id: 10, row: 2, col: 1, direction: ArrowDirection.left),
+      arrows: [
+        CanvasArrow(
+          id: 1,
+          points: const [Offset(3, 5), Offset(3, 0.5)],
+          exitDirection: ArrowDirection.up,
+        ),
       ],
     ),
   ];

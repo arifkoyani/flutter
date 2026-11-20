@@ -3,6 +3,7 @@ import '../models/puzzle_level.dart';
 import '../data/levels_data.dart';
 import '../widgets/puzzle_board.dart';
 import '../database/game_database.dart';
+import 'settings/setting.dart';
 
 class GamePlayScreen extends StatefulWidget {
   final int levelId;
@@ -20,7 +21,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   static const Color primaryOrange = Color(0xFFFF550D);
 
   late PuzzleLevel _level;
-  late List<ArrowItem> _arrows;
+  late List<CanvasArrow> _arrows;
   int _mistakes = 0;
   int _remainingArrows = 0;
   bool _isGameOver = false;
@@ -34,7 +35,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
 
   void _loadLevel(int id) {
     _level = LevelsData.getLevel(id);
-    _arrows = _level.initialArrows.map((a) => a.clone()).toList();
+    _arrows = _level.arrows.map((a) => a.clone()).toList();
     _mistakes = 0;
     _remainingArrows = _arrows.length;
     _isGameOver = false;
@@ -47,12 +48,11 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     });
   }
 
-  void _onArrowTapped(ArrowItem arrow, bool isClear) {
+  void _onArrowTapped(CanvasArrow arrow, bool isClear) {
     if (_isGameOver || _isVictory) return;
 
     if (isClear) {
       setState(() {
-        arrow.isExited = true;
         _remainingArrows--;
       });
 
@@ -131,11 +131,24 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         ),
         centerTitle: true,
         actions: [
+          // Top-right Settings button (replaced refresh button)
           IconButton(
-            icon: const Icon(Icons.refresh_rounded, color: primaryOrange, size: 26),
-            tooltip: 'Restart Level',
-            onPressed: _resetCurrentLevel,
+            icon: const Icon(
+              Icons.settings_rounded,
+              color: primaryOrange,
+              size: 28,
+            ),
+            tooltip: 'Settings',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const SettingScreen(),
+                ),
+              );
+            },
           ),
+          const SizedBox(width: 4),
         ],
       ),
       body: SafeArea(
@@ -146,53 +159,58 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             children: [
               const SizedBox(height: 8),
 
-              // Top Status HUD (Mistakes Hearts & Arrows Remaining)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    // Mistakes tracker (Hearts)
-                    _buildMistakesHUD(),
-
-                    // Remaining Arrows Badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 14,
-                        vertical: 8,
+              // Top Status HUD (Remaining Arrows Badge centered, mistakes UI removed)
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primaryOrange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: primaryOrange.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.arrow_forward_rounded,
+                        size: 18,
+                        color: primaryOrange,
                       ),
-                      decoration: BoxDecoration(
-                        color: primaryOrange.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: primaryOrange.withValues(alpha: 0.3),
+                      const SizedBox(width: 8),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 240),
+                        transitionBuilder: (child, animation) {
+                          return ScaleTransition(
+                            scale: Tween<double>(begin: 0.7, end: 1.0)
+                                .animate(animation),
+                            child: FadeTransition(
+                              opacity: animation,
+                              child: child,
+                            ),
+                          );
+                        },
+                        child: Text(
+                          '$_remainingArrows / ${_arrows.length} ARROWS LEFT',
+                          key: ValueKey<int>(_remainingArrows),
+                          style: const TextStyle(
+                            color: primaryOrange,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
                         ),
                       ),
-                      child: Row(
-                        children: [
-                          const Icon(
-                            Icons.arrow_forward_rounded,
-                            size: 18,
-                            color: primaryOrange,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '$_remainingArrows / ${_arrows.length} LEFT',
-                            style: const TextStyle(
-                              color: primaryOrange,
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 16),
 
               // Gameplay Objective Banner
               Container(
@@ -225,79 +243,25 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
-              // Interactive Puzzle Board
+              // Interactive Puzzle Board on Canvas
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0),
                 child: PuzzleBoard(
-                  gridSize: _level.gridSize,
+                  gridCols: _level.gridCols,
+                  gridRows: _level.gridRows,
                   arrows: _arrows,
+                  walls: _level.walls,
                   onArrowTap: _onArrowTapped,
                 ),
               ),
 
-              const SizedBox(height: 20),
-
-              // Bottom restart button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8.0),
-                child: SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: OutlinedButton.icon(
-                    onPressed: _resetCurrentLevel,
-                    icon: const Icon(Icons.replay_rounded, color: primaryOrange),
-                    label: const Text(
-                      'Reset Puzzle',
-                      style: TextStyle(
-                        color: primaryOrange,
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: primaryOrange, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+              const SizedBox(height: 24),
             ],
           ),
         ),
       ),
-    );
-  }
-
-  // 3 Mistakes indicator (Hearts)
-  Widget _buildMistakesHUD() {
-    return Row(
-      children: [
-        const Text(
-          'MISTAKES: ',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFF666666),
-            letterSpacing: 0.5,
-          ),
-        ),
-        const SizedBox(width: 4),
-        ...List.generate(_level.maxMistakes, (index) {
-          final isLost = index < _mistakes;
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 2.0),
-            child: Icon(
-              isLost ? Icons.heart_broken_rounded : Icons.favorite_rounded,
-              color: isLost ? const Color(0xFFB0B0B0) : const Color(0xFFFF3B30),
-              size: 22,
-            ),
-          );
-        }),
-      ],
     );
   }
 
@@ -335,7 +299,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'You cleared all 10 arrows with $_mistakes mistake${_mistakes == 1 ? '' : 's'}.',
+              'You cleared all ${_arrows.length} arrows successfully!',
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Color(0xFF666666),
@@ -402,85 +366,99 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.close_rounded,
-                color: Colors.redAccent,
-                size: 38,
-              ),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutBack,
+        builder: (context, t, child) {
+          return Opacity(
+            opacity: t.clamp(0.0, 1.0),
+            child: Transform.scale(
+              scale: 0.75 + 0.25 * t,
+              child: child,
             ),
-            const SizedBox(height: 16),
-            const Text(
-              'Stage Failed',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                color: Colors.black,
-              ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'You made 3 mistakes.\nCheck the path of the arrows carefully!',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Color(0xFF666666),
-                fontSize: 13.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Retry Button
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  _resetCurrentLevel();
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryOrange,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
                 ),
-                child: const Text(
-                  'Retry Stage',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                child: const Icon(
+                  Icons.close_rounded,
+                  color: Colors.redAccent,
+                  size: 38,
                 ),
               ),
-            ),
-            const SizedBox(height: 10),
-
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
-              child: const Text(
-                'Back to Adventure Map',
+              const SizedBox(height: 16),
+              const Text(
+                'Stage Failed',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w900,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'You made 3 mistakes.\nCheck the path of the arrows carefully!',
+                textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Color(0xFF666666),
-                  fontWeight: FontWeight.w600,
+                  fontSize: 13.5,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+
+              // Retry Button
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _resetCurrentLevel();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primaryOrange,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: const Text(
+                    'Retry Stage',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.pop(context);
+                },
+                child: const Text(
+                  'Back to Adventure Map',
+                  style: TextStyle(
+                    color: Color(0xFF666666),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

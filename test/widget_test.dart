@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:my_android_app/main.dart';
 import 'package:my_android_app/screens/game_play_screen.dart';
+import 'package:my_android_app/widgets/puzzle_board.dart';
 import 'package:my_android_app/screens/settings/setting.dart';
 import 'package:my_android_app/screens/settings/privacy_policy.dart';
 import 'package:my_android_app/screens/settings/terms_of_service.dart';
@@ -35,24 +36,26 @@ void main() {
     // Verify Level 1 GamePlayScreen loaded
     expect(find.byType(GamePlayScreen), findsOneWidget);
     expect(find.text('Stage 1: First Steps'), findsOneWidget);
-    expect(find.text('10 / 10 LEFT'), findsOneWidget);
+    expect(find.text('10 / 10 ARROWS LEFT'), findsOneWidget);
 
-    // Tap an unblocked arrow on the board (Arrow 1 pointing right with size 32)
-    final arrowTile = find.byWidgetPredicate(
-      (widget) =>
-          widget is Icon &&
-          widget.icon == Icons.arrow_forward_rounded &&
-          widget.size == 32,
-    ).first;
-    await tester.tap(arrowTile);
+    // Verify Settings button is present on top right of GamePlayScreen
+    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+
+    // Verify reset buttons and mistake counter are removed
+    expect(find.text('Reset Puzzle'), findsNothing);
+    expect(find.text('MISTAKES: '), findsNothing);
+
+    // Tap unblocked Arrow 1 on the canvas at center
+    await tester.tap(find.byType(PuzzleBoard));
+    await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
 
-    // Verify count decrements to 9 / 10 LEFT
-    expect(find.text('9 / 10 LEFT'), findsOneWidget);
+    // Verify count decrements to 9 / 10 ARROWS LEFT
+    expect(find.text('9 / 10 ARROWS LEFT'), findsOneWidget);
 
     // Press back to Adventure Map
     await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets('Settings screen UI and navigation test',
