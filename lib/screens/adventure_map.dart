@@ -1,4 +1,6 @@
 import 'package:material_ui/material_ui.dart';
+import 'game_play_screen.dart';
+import '../database/game_database.dart';
 
 class AdventureLevel {
   final int id;
@@ -32,44 +34,45 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
     with SingleTickerProviderStateMixin {
   static const Color primaryOrange = Color(0xFFFF550D);
 
-  // 5 Adventure Levels (Level 1 unlocked by default)
-  final List<AdventureLevel> _levels = const [
-    AdventureLevel(
-      id: 1,
-      name: 'First Steps',
-      subtitle: 'The Beginning',
-      icon: Icons.explore_rounded,
-      isUnlocked: true,
-    ),
-    AdventureLevel(
-      id: 2,
-      name: 'Arrow Forest',
-      subtitle: 'Deep Woods',
-      icon: Icons.park_rounded,
-      isUnlocked: false,
-    ),
-    AdventureLevel(
-      id: 3,
-      name: 'Mystery Maze',
-      subtitle: 'Twisted Paths',
-      icon: Icons.grid_4x4_rounded,
-      isUnlocked: false,
-    ),
-    AdventureLevel(
-      id: 4,
-      name: 'Desert Escape',
-      subtitle: 'Sun Dunes',
-      icon: Icons.wb_sunny_rounded,
-      isUnlocked: false,
-    ),
-    AdventureLevel(
-      id: 5,
-      name: 'Final Challenge',
-      subtitle: 'Ultimate Quest',
-      icon: Icons.emoji_events_rounded,
-      isUnlocked: false,
-    ),
-  ];
+  List<AdventureLevel> get _levels {
+    return [
+      AdventureLevel(
+        id: 1,
+        name: 'First Steps',
+        subtitle: 'The Beginning',
+        icon: Icons.explore_rounded,
+        isUnlocked: GameDatabase.instance.isLevelUnlocked(1),
+      ),
+      AdventureLevel(
+        id: 2,
+        name: 'Arrow Forest',
+        subtitle: 'Deep Woods',
+        icon: Icons.park_rounded,
+        isUnlocked: GameDatabase.instance.isLevelUnlocked(2),
+      ),
+      AdventureLevel(
+        id: 3,
+        name: 'Mystery Maze',
+        subtitle: 'Twisted Paths',
+        icon: Icons.grid_4x4_rounded,
+        isUnlocked: GameDatabase.instance.isLevelUnlocked(3),
+      ),
+      AdventureLevel(
+        id: 4,
+        name: 'Desert Escape',
+        subtitle: 'Sun Dunes',
+        icon: Icons.wb_sunny_rounded,
+        isUnlocked: GameDatabase.instance.isLevelUnlocked(4),
+      ),
+      AdventureLevel(
+        id: 5,
+        name: 'Final Challenge',
+        subtitle: 'Ultimate Quest',
+        icon: Icons.emoji_events_rounded,
+        isUnlocked: GameDatabase.instance.isLevelUnlocked(5),
+      ),
+    ];
+  }
 
   int _selectedLevelId = 1;
   late final TransformationController _transformationController;
@@ -578,31 +581,38 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
       ),
       child: ElevatedButton(
         onPressed: () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              backgroundColor: Colors.black,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-                side: const BorderSide(color: primaryOrange, width: 1.2),
-              ),
-              content: Row(
-                children: [
-                  const Icon(Icons.sports_esports_rounded,
-                      color: primaryOrange, size: 22),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Starting Stage ${level.id}: ${level.name}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
+          if (!level.isUnlocked) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                backgroundColor: const Color(0xFF1E293B),
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                content: Row(
+                  children: [
+                    const Icon(Icons.lock_rounded, color: Colors.amberAccent, size: 20),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Stage ${level.id} is locked! Complete Stage ${level.id - 1} first.',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                duration: const Duration(seconds: 2),
               ),
-              duration: const Duration(seconds: 2),
+            );
+            return;
+          }
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => GamePlayScreen(levelId: level.id),
             ),
-          );
+          ).then((_) {
+            if (mounted) setState(() {});
+          });
         },
         style: ElevatedButton.styleFrom(
           backgroundColor: primaryOrange,

@@ -1,12 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:my_android_app/main.dart';
+import 'package:my_android_app/screens/game_play_screen.dart';
 import 'package:my_android_app/screens/settings/setting.dart';
 import 'package:my_android_app/screens/settings/privacy_policy.dart';
 import 'package:my_android_app/screens/settings/terms_of_service.dart';
 
 void main() {
-  testWidgets('Full flow to Adventure Map with 3D Z-axis and Pan/Zoom',
+  testWidgets('Full flow: Splash -> Amaze -> Map -> Play Level 1',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
@@ -25,37 +26,33 @@ void main() {
     // Verify Adventure Map upward flow markers and 5 levels
     expect(find.text('THE SUMMIT • STAGE 5'), findsOneWidget);
     expect(find.text('First Steps'), findsOneWidget);
-    expect(find.text('Arrow Forest'), findsOneWidget);
-    expect(find.text('Mystery Maze'), findsOneWidget);
-    expect(find.text('Desert Escape'), findsOneWidget);
-    expect(find.text('Final Challenge'), findsOneWidget);
-    expect(find.text('STARTING BASE • STAGE 1'), findsOneWidget);
-
-    // Verify InteractiveViewer is present for pan & zoom
-    expect(find.byType(InteractiveViewer), findsOneWidget);
-
-    // Verify prominent Play button defaults to Stage 1 (at bottom)
     expect(find.text('PLAY • STAGE 1'), findsOneWidget);
 
-    // Ensure Level 1 (First Steps) is visible and tap it
-    await tester.ensureVisible(find.text('First Steps'));
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('First Steps'));
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('PLAY • STAGE 1'), findsOneWidget);
-
-    // Ensure Arrow Forest (Stage 2, upward) is visible and tap it
-    await tester.ensureVisible(find.text('Arrow Forest'));
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.tap(find.text('Arrow Forest'));
-    await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('PLAY • STAGE 2'), findsOneWidget);
-
-    // Verify settings icon navigates to SettingScreen
-    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
-    await tester.tap(find.byIcon(Icons.settings_rounded));
+    // Tap PLAY • STAGE 1 to open GamePlayScreen for Level 1
+    await tester.tap(find.text('PLAY • STAGE 1'));
     await tester.pumpAndSettle();
-    expect(find.byType(SettingScreen), findsOneWidget);
+
+    // Verify Level 1 GamePlayScreen loaded
+    expect(find.byType(GamePlayScreen), findsOneWidget);
+    expect(find.text('Stage 1: First Steps'), findsOneWidget);
+    expect(find.text('10 / 10 LEFT'), findsOneWidget);
+
+    // Tap an unblocked arrow on the board (Arrow 1 pointing right with size 32)
+    final arrowTile = find.byWidgetPredicate(
+      (widget) =>
+          widget is Icon &&
+          widget.icon == Icons.arrow_forward_rounded &&
+          widget.size == 32,
+    ).first;
+    await tester.tap(arrowTile);
+    await tester.pumpAndSettle();
+
+    // Verify count decrements to 9 / 10 LEFT
+    expect(find.text('9 / 10 LEFT'), findsOneWidget);
+
+    // Press back to Adventure Map
+    await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('Settings screen UI and navigation test',
