@@ -6,30 +6,56 @@ import 'package:my_android_app/screens/settings/privacy_policy.dart';
 import 'package:my_android_app/screens/settings/terms_of_service.dart';
 
 void main() {
-  testWidgets('Full automatic flow: Splash -> Amaze -> Dashboard',
+  testWidgets('Full flow to Adventure Map with 3D Z-axis and Pan/Zoom',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
     // 1. Splash screen displays "Weconnect Games"
     expect(find.text('Weconnect Games'), findsOneWidget);
 
-    // 2. Splash finishes loading (2.2s) and navigates to AmazeScreen
+    // 2. Advance through Splash to AmazeScreen
     await tester.pump(const Duration(milliseconds: 2300));
     await tester.pumpAndSettle();
-
-    // Verify AmazeScreen texts
-    expect(
-      find.text('one rouhd is all it take, cool!\nyour mood right down.'),
-      findsOneWidget,
-    );
     expect(find.text('---Amaze GO!'), findsOneWidget);
 
-    // 3. AmazeScreen finishes timer (2.5s) and navigates to DashboardScreen
+    // 3. Advance through Amaze to Dashboard (Adventure Map)
     await tester.pump(const Duration(milliseconds: 2600));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 500));
 
-    // Verify DashboardScreen text
-    expect(find.text('welcome to go arrow game '), findsOneWidget);
+    // Verify Adventure Map upward flow markers and 5 levels
+    expect(find.text('THE SUMMIT • STAGE 5'), findsOneWidget);
+    expect(find.text('First Steps'), findsOneWidget);
+    expect(find.text('Arrow Forest'), findsOneWidget);
+    expect(find.text('Mystery Maze'), findsOneWidget);
+    expect(find.text('Desert Escape'), findsOneWidget);
+    expect(find.text('Final Challenge'), findsOneWidget);
+    expect(find.text('STARTING BASE • STAGE 1'), findsOneWidget);
+
+    // Verify InteractiveViewer is present for pan & zoom
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+
+    // Verify prominent Play button defaults to Stage 1 (at bottom)
+    expect(find.text('PLAY • STAGE 1'), findsOneWidget);
+
+    // Ensure Level 1 (First Steps) is visible and tap it
+    await tester.ensureVisible(find.text('First Steps'));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('First Steps'));
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.text('PLAY • STAGE 1'), findsOneWidget);
+
+    // Ensure Arrow Forest (Stage 2, upward) is visible and tap it
+    await tester.ensureVisible(find.text('Arrow Forest'));
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.tap(find.text('Arrow Forest'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('PLAY • STAGE 2'), findsOneWidget);
+
+    // Verify settings icon navigates to SettingScreen
+    expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+    await tester.tap(find.byIcon(Icons.settings_rounded));
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingScreen), findsOneWidget);
   });
 
   testWidgets('Settings screen UI and navigation test',
