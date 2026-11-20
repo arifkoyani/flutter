@@ -36,7 +36,9 @@ void main() {
     // Verify Level 1 GamePlayScreen loaded
     expect(find.byType(GamePlayScreen), findsOneWidget);
     expect(find.text('Stage 1: First Steps'), findsOneWidget);
-    expect(find.text('10 / 10 ARROWS LEFT'), findsOneWidget);
+    expect(find.text('LIVES'), findsOneWidget);
+    expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
+    expect(find.textContaining('ARROWS LEFT'), findsNothing);
 
     // Verify Settings button is present on top right of GamePlayScreen
     expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
@@ -50,8 +52,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     await tester.pumpAndSettle();
 
-    // Verify count decrements to 9 / 10 ARROWS LEFT
-    expect(find.text('9 / 10 ARROWS LEFT'), findsOneWidget);
+    // Verify lives still remain intact (3 hearts)
+    expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
 
     // Press back to Adventure Map
     await tester.tap(find.byIcon(Icons.arrow_back_ios_new_rounded));
@@ -73,6 +75,10 @@ void main() {
     expect(find.text('Music'), findsOneWidget);
     expect(find.text('Privacy Policy'), findsOneWidget);
     expect(find.text('Terms of Service'), findsOneWidget);
+
+    // Tap Music toggle to test ON/OFF
+    await tester.tap(find.text('Music'));
+    await tester.pumpAndSettle();
 
     // Tap Privacy Policy and verify navigation
     await tester.tap(find.text('Privacy Policy'));

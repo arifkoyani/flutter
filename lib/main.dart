@@ -1,7 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 import 'screens/splash_screen.dart';
+import 'services/audio_service.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await AudioService.instance.init();
   runApp(const MyApp());
 }
 

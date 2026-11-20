@@ -1,8 +1,11 @@
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import '../models/puzzle_level.dart';
 import '../data/levels_data.dart';
 import '../widgets/puzzle_board.dart';
 import '../database/game_database.dart';
+import '../services/audio_service.dart';
+import '../services/preferences_service.dart';
 import 'settings/setting.dart';
 
 class GamePlayScreen extends StatefulWidget {
@@ -66,7 +69,17 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
         _mistakes++;
       });
 
+      if (PreferencesService.instance.isSoundOn) {
+        AudioService.instance.playMistakeSound();
+      }
+      if (PreferencesService.instance.isVibrationOn) {
+        HapticFeedback.mediumImpact();
+      }
+
       if (_mistakes >= _level.maxMistakes) {
+        if (PreferencesService.instance.isSoundOn) {
+          AudioService.instance.playGameOverSound();
+        }
         _handleGameOver();
       }
     }
@@ -487,4 +500,16 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       ),
     );
   }
+}
+
+/// Clips the arrow canvas strictly at y=0 (just below the objective banner),
+/// while keeping left, right, and bottom wide open for full-screen escaping.
+class _BelowBannerClipper extends CustomClipper<Rect> {
+  @override
+  Rect getClip(Size size) {
+    return Rect.fromLTRB(-2000, 0, size.width + 2000, 3000);
+  }
+
+  @override
+  bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
 }

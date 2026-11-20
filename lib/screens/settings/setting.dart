@@ -1,4 +1,5 @@
 import 'package:material_ui/material_ui.dart';
+import '../../services/preferences_service.dart';
 import 'privacy_policy.dart';
 import 'terms_of_service.dart';
 
@@ -10,12 +11,19 @@ class SettingScreen extends StatefulWidget {
 }
 
 class _SettingScreenState extends State<SettingScreen> {
-  // Visual UI state only (no backend logic as requested)
-  bool _isSoundOn = true;
-  bool _isVibrationOn = true;
-  bool _isMusicOn = false;
+  late bool _isSoundOn;
+  late bool _isVibrationOn;
+  late bool _isMusicOn;
 
   static const Color primaryOrange = Color(0xFFFF550D);
+
+  @override
+  void initState() {
+    super.initState();
+    _isSoundOn = PreferencesService.instance.isSoundOn;
+    _isVibrationOn = PreferencesService.instance.isVibrationOn;
+    _isMusicOn = PreferencesService.instance.isMusicOn;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -67,7 +75,10 @@ class _SettingScreenState extends State<SettingScreen> {
                 title: 'Sound',
                 subtitle: 'Game sound effects',
                 value: _isSoundOn,
-                onChanged: (val) => setState(() => _isSoundOn = val),
+                onChanged: (val) {
+                  setState(() => _isSoundOn = val);
+                  PreferencesService.instance.setSoundOn(val);
+                },
               ),
 
               const SizedBox(height: 12),
@@ -78,7 +89,10 @@ class _SettingScreenState extends State<SettingScreen> {
                 title: 'Vibration',
                 subtitle: 'Haptic feedback on actions',
                 value: _isVibrationOn,
-                onChanged: (val) => setState(() => _isVibrationOn = val),
+                onChanged: (val) {
+                  setState(() => _isVibrationOn = val);
+                  PreferencesService.instance.setVibrationOn(val);
+                },
               ),
 
               const SizedBox(height: 12),
@@ -89,7 +103,10 @@ class _SettingScreenState extends State<SettingScreen> {
                 title: 'Music',
                 subtitle: 'Background soundtrack',
                 value: _isMusicOn,
-                onChanged: (val) => setState(() => _isMusicOn = val),
+                onChanged: (val) {
+                  setState(() => _isMusicOn = val);
+                  PreferencesService.instance.setMusicOn(val);
+                },
               ),
 
               const SizedBox(height: 32),
