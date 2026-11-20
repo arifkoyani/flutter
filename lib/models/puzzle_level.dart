@@ -49,7 +49,7 @@ class CanvasArrow {
 
   /// Runtime state
   bool isExited;
-  double exitOffset; // Distance moved along exit vector
+  double exitDistance; // Distance traveled along the snake path in grid units
   bool isShaking;
 
   CanvasArrow({
@@ -58,12 +58,85 @@ class CanvasArrow {
     required this.exitDirection,
     this.color,
     this.isExited = false,
-    this.exitOffset = 0.0,
+    this.exitDistance = 0.0,
     this.isShaking = false,
   });
 
   Offset get tip => points.last;
   Offset get start => points.first;
+
+  /// Total length of the arrow along its path in grid units
+  double get totalLength {
+    double len = 0;
+    for (int i = 0; i < points.length - 1; i++) {
+      len += (points[i + 1] - points[i]).distance;
+    }
+    return len;
+  }
+
+  /// Extracts the snake-like path at distance [d].
+  /// The head advances along the forward exit vector while the body
+  /// and tail follow the exact path waypoints and corners in sequence.
+  List<Offset> getSnakePathPoints(double d, {double exitProjection = 30.0}) {
+    if (d <= 0.0) {
+      return List<Offset>.from(points);
+    }
+
+    final length = totalLength;
+    final dir = exitDirection.unitVector;
+
+    // Full trajectory: original waypoints + extended exit projection
+    final trajectory = <Offset>[
+      ...points,
+      points.last + dir * exitProjection,
+    ];
+
+    // Cumulative distances along trajectory
+    final cumulative = <double>[0.0];
+    for (int i = 0; i < trajectory.length - 1; i++) {
+      final segLen = (trajectory[i + 1] - trajectory[i]).distance;
+      cumulative.add(cumulative.last + segLen);
+    }
+
+    final totalTrajectoryLength = cumulative.last;
+    final sTail = d;
+    final sHead = (length + d).clamp(0.0, totalTrajectoryLength);
+
+    if (sTail >= totalTrajectoryLength) {
+      return [];
+    }
+
+    Offset getPointAtDistance(double s) {
+      for (int i = 0; i < cumulative.length - 1; i++) {
+        final cStart = cumulative[i];
+        final cEnd = cumulative[i + 1];
+        if (s >= cStart && s <= cEnd) {
+          final segLen = cEnd - cStart;
+          if (segLen == 0) return trajectory[i];
+          final f = (s - cStart) / segLen;
+          return Offset(
+            trajectory[i].dx + (trajectory[i + 1].dx - trajectory[i].dx) * f,
+            trajectory[i].dy + (trajectory[i + 1].dy - trajectory[i].dy) * f,
+          );
+        }
+      }
+      return trajectory.last;
+    }
+
+    final result = <Offset>[];
+    result.add(getPointAtDistance(sTail));
+
+    // Preserve all corners and intermediate turns between tail and head
+    for (int i = 1; i < cumulative.length - 1; i++) {
+      final c = cumulative[i];
+      if (c > sTail + 0.001 && c < sHead - 0.001) {
+        result.add(trajectory[i]);
+      }
+    }
+
+    result.add(getPointAtDistance(sHead));
+    return result;
+  }
 
   CanvasArrow clone() {
     return CanvasArrow(
@@ -72,7 +145,7 @@ class CanvasArrow {
       exitDirection: exitDirection,
       color: color,
       isExited: isExited,
-      exitOffset: exitOffset,
+      exitDistance: exitDistance,
       isShaking: isShaking,
     );
   }

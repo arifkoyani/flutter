@@ -159,7 +159,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
             children: [
               const SizedBox(height: 8),
 
-              // Top Status HUD (Remaining Arrows Badge centered, mistakes UI removed)
+              // Top Status HUD (Mistakes / Lives using Hearts)
               Center(
                 child: Container(
                   padding: const EdgeInsets.symmetric(
@@ -167,43 +167,61 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                     vertical: 8,
                   ),
                   decoration: BoxDecoration(
-                    color: primaryOrange.withValues(alpha: 0.12),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                     border: Border.all(
-                      color: primaryOrange.withValues(alpha: 0.3),
+                      color: const Color(0xFFEEEEEE),
+                      width: 1.2,
                     ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.arrow_forward_rounded,
-                        size: 18,
-                        color: primaryOrange,
+                      const Text(
+                        'LIVES',
+                        style: TextStyle(
+                          color: Color(0xFF8E8E93),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.0,
+                        ),
                       ),
-                      const SizedBox(width: 8),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 240),
-                        transitionBuilder: (child, animation) {
-                          return ScaleTransition(
-                            scale: Tween<double>(begin: 0.7, end: 1.0)
-                                .animate(animation),
-                            child: FadeTransition(
-                              opacity: animation,
-                              child: child,
+                      const SizedBox(width: 10),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: List.generate(_level.maxMistakes, (index) {
+                          final isAlive =
+                              index < (_level.maxMistakes - _mistakes);
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 3.0),
+                            child: AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 250),
+                              transitionBuilder: (child, animation) {
+                                return ScaleTransition(
+                                  scale: animation,
+                                  child: child,
+                                );
+                              },
+                              child: Icon(
+                                isAlive
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                key: ValueKey<bool>(isAlive),
+                                size: 24,
+                                color: isAlive
+                                    ? const Color(0xFFFF3B30)
+                                    : const Color(0xFFD1D5DB),
+                              ),
                             ),
                           );
-                        },
-                        child: Text(
-                          '$_remainingArrows / ${_arrows.length} ARROWS LEFT',
-                          key: ValueKey<int>(_remainingArrows),
-                          style: const TextStyle(
-                            color: primaryOrange,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
+                        }),
                       ),
                     ],
                   ),
@@ -243,21 +261,27 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
-
-              // Interactive Puzzle Board on Canvas
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: PuzzleBoard(
-                  gridCols: _level.gridCols,
-                  gridRows: _level.gridRows,
-                  arrows: _arrows,
-                  walls: _level.walls,
-                  onArrowTap: _onArrowTapped,
+              // Escape area starting strictly below the banner text
+              ClipRect(
+                clipper: _BelowBannerClipper(),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 20),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      child: PuzzleBoard(
+                        levelId: _level.id,
+                        gridCols: _level.gridCols,
+                        gridRows: _level.gridRows,
+                        arrows: _arrows,
+                        walls: _level.id == 1 ? const [] : _level.walls,
+                        onArrowTap: _onArrowTapped,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
-
-              const SizedBox(height: 24),
             ],
           ),
         ),

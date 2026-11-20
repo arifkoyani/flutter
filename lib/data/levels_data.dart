@@ -3,37 +3,16 @@ import '../models/puzzle_level.dart';
 
 class LevelsData {
   static final List<PuzzleLevel> levels = [
-    // Level 1: First Steps (10 Canvas Arrows in Maze)
+    // Level 1: First Steps (10 Canvas Arrows, clean open screen without boxed borders)
     PuzzleLevel(
       id: 1,
       name: 'First Steps',
-      subtitle: 'Escape the Arrow Labyrinth',
+      subtitle: 'Escape the Arrows',
       gridCols: 6,
       gridRows: 6,
       maxMistakes: 3,
-      walls: const [
-        // Outer boundary with exit openings
-        MazeWall(Offset(0, 0), Offset(0, 6)), // Left wall
-        MazeWall(Offset(0, 6), Offset(6, 6)), // Bottom wall
-        MazeWall(Offset(6, 6), Offset(6, 0)), // Right wall
-        MazeWall(Offset(6, 0), Offset(0, 0)), // Top wall
-
-        // Inner Maze Corridors (as shown in diagram)
-        MazeWall(Offset(1.0, 1.0), Offset(1.0, 5.0)),
-        MazeWall(Offset(2.0, 0.0), Offset(2.0, 4.0)),
-        MazeWall(Offset(2.0, 4.0), Offset(3.5, 4.0)),
-        MazeWall(Offset(3.5, 1.0), Offset(3.5, 4.0)),
-        MazeWall(Offset(4.8, 0.0), Offset(4.8, 4.5)),
-        MazeWall(Offset(4.8, 4.5), Offset(3.8, 4.5)),
-      ],
-      exits: const [
-        MazeExit(Offset(3.0, 0.0), ArrowDirection.up),
-        MazeExit(Offset(6.0, 1.0), ArrowDirection.right),
-        MazeExit(Offset(0.0, 0.5), ArrowDirection.left),
-        MazeExit(Offset(0.0, 3.0), ArrowDirection.left),
-        MazeExit(Offset(2.2, 6.0), ArrowDirection.down),
-        MazeExit(Offset(5.2, 6.0), ArrowDirection.down),
-      ],
+      walls: const [],
+      exits: const [],
       arrows: [
         // 1. Straight Up (Exit top center) -> Clear immediately
         CanvasArrow(
