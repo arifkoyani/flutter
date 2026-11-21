@@ -55,6 +55,11 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     if (_isGameOver || _isVictory) return;
 
     if (isClear) {
+      AudioService.instance.playSwooshSound();
+      if (PreferencesService.instance.isVibrationOn) {
+        HapticFeedback.lightImpact();
+      }
+
       setState(() {
         _remainingArrows--;
       });
