@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import '../models/puzzle_level.dart';
@@ -211,148 +212,58 @@ class _GamePlayScreenState extends State<GamePlayScreen>
         ],
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.symmetric(vertical: 8.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 8),
-
-              // Top Status HUD (Mistakes / Lives using Hearts)
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 18,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.05),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                    border: Border.all(
-                      color: const Color(0xFFEEEEEE),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'LIVES',
-                        style: TextStyle(
-                          color: Color(0xFF8E8E93),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.0,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: List.generate(_level.maxMistakes, (index) {
-                          final isAlive =
-                              index < (_level.maxMistakes - _mistakes);
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 3.0),
-                            child: AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 250),
-                              transitionBuilder: (child, animation) {
-                                return ScaleTransition(
-                                  scale: animation,
-                                  child: child,
-                                );
-                              },
-                              child: Icon(
-                                isAlive
-                                    ? Icons.favorite_rounded
-                                    : Icons.favorite_border_rounded,
-                                key: ValueKey<bool>(isAlive),
-                                size: 24,
-                                color: isAlive
-                                    ? const Color(0xFFFF3B30)
-                                    : const Color(0xFFD1D5DB),
-                              ),
-                            ),
-                          );
-                        }),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              // Gameplay Objective Banner
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 24),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF7F8FA),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: const Color(0xFFE8ECF2)),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.info_outline_rounded,
-                      size: 18,
-                      color: Color(0xFF6B7280),
-                    ),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Drag to spin the cube. Tap an arrow when its path is clear.',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Color(0xFF4B5563),
-                          fontWeight: FontWeight.w500,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final boardSide = math.min(constraints.maxWidth - 24.0, 460.0);
+            final minNeeded = boardSide + 76.0;
+            if (constraints.maxHeight >= minNeeded) {
+              return Column(
+                children: [
+                  const SizedBox(height: 16),
+                  _buildLivesHud(),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ClipRect(
+                      clipper: _BelowBannerClipper(),
+                      child: Center(
+                        child: FractionalTranslation(
+                          translation: const Offset(0.0, -0.10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                            child: _buildPuzzleBoard(),
+                          ),
                         ),
                       ),
                     ),
-                  ],
-                ),
-              ),
-
-              // Escape area starting strictly below the banner text
-              ClipRect(
-                clipper: _BelowBannerClipper(),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 20),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                      child: PuzzleBoard(
-                        key: ValueKey(_level.id),
-                        levelId: _level.id,
-                        gridCols: _level.gridCols,
-                        gridRows: _level.gridRows,
-                        arrows: _arrows,
-                        walls: _level.id == 1 ? const [] : _level.walls,
-                        onArrowTap: _onArrowTapped,
-                      ),
+                  ),
+                ],
+              );
+            }
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  _buildLivesHud(),
+                  const SizedBox(height: 12),
+                  ClipRect(
+                    clipper: _BelowBannerClipper(),
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 20),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                          child: _buildPuzzleBoard(),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Spin the cube to reach every face',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF8E8E93),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
         ),
@@ -374,6 +285,87 @@ class _GamePlayScreenState extends State<GamePlayScreen>
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildLivesHud() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 8,
+        ),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: const Color(0xFFEEEEEE),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'LIVES',
+              style: TextStyle(
+                color: Color(0xFF8E8E93),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(_level.maxMistakes, (index) {
+                final isAlive = index < (_level.maxMistakes - _mistakes);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 3.0),
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    transitionBuilder: (child, animation) {
+                      return ScaleTransition(
+                        scale: animation,
+                        child: child,
+                      );
+                    },
+                    child: Icon(
+                      isAlive
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      key: ValueKey<bool>(isAlive),
+                      size: 24,
+                      color: isAlive
+                          ? const Color(0xFFFF3B30)
+                          : const Color(0xFFD1D5DB),
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPuzzleBoard() {
+    return PuzzleBoard(
+      key: ValueKey(_level.id),
+      levelId: _level.id,
+      gridCols: _level.gridCols,
+      gridRows: _level.gridRows,
+      arrows: _arrows,
+      walls: _level.id == 1 ? const [] : _level.walls,
+      onArrowTap: _onArrowTapped,
     );
   }
 

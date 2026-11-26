@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
 import '../models/puzzle_level.dart';
@@ -31,6 +32,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     with TickerProviderStateMixin {
   static const double _restYaw = -0.72;
   static const double _restPitch = 0.50;
+  static const double _minZoom = 0.65;
+  static const double _maxZoom = 2.0;
 
   int? _shakingArrowId;
   int? _exitingArrowId;
@@ -46,6 +49,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), _restYaw));
   double _yawVelocity = 0;
   double _pitchVelocity = 0;
+  double _zoom = 1.0;
   late final Ticker _spinTicker;
   Duration? _spinLast;
 
@@ -54,6 +58,9 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   Offset _lastPos = Offset.zero;
   DateTime _lastMoveTime = DateTime.fromMillisecondsSinceEpoch(0);
   bool _dragged = false;
+  final Map<int, Offset> _pointers = {};
+  double? _lastPinchDistance;
+  bool _pinched = false;
 
   @override
   void initState() {
@@ -122,6 +129,10 @@ class _PuzzleBoardState extends State<PuzzleBoard>
           .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), _restYaw));
       _yawVelocity = 0;
       _pitchVelocity = 0;
+      _zoom = 1.0;
+      _pointers.clear();
+      _lastPinchDistance = null;
+      _pinched = false;
       _spinTicker.stop();
       _spinLast = null;
     }
@@ -159,21 +170,71 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     });
   }
 
+  double? _currentPinchDistance() {
+    if (_pointers.length < 2) return null;
+    final positions = _pointers.values.take(2).toList();
+    return (positions[0] - positions[1]).distance;
+  }
+
+  void _onPointerSignal(PointerSignalEvent event) {
+    if (event is PointerScrollEvent) {
+      GestureBinding.instance.pointerSignalResolver.register(event, (signal) {
+        if (signal is PointerScrollEvent && mounted) {
+          final factor = math.exp(-signal.scrollDelta.dy * 0.0015);
+          setState(() {
+            _zoom = (_zoom * factor).clamp(_minZoom, _maxZoom);
+          });
+        }
+      });
+    }
+  }
+
   void _onPointerDown(PointerDownEvent event) {
-    if (_activePointer != null) return;
-    _activePointer = event.pointer;
-    _downPos = event.localPosition;
-    _lastPos = event.localPosition;
-    _lastMoveTime = DateTime.now();
-    _dragged = false;
-    _yawVelocity = 0;
-    _pitchVelocity = 0;
-    _spinTicker.stop();
-    _spinLast = null;
+    _pointers[event.pointer] = event.localPosition;
+    if (_pointers.length == 1) {
+      _activePointer = event.pointer;
+      _downPos = event.localPosition;
+      _lastPos = event.localPosition;
+      _lastMoveTime = DateTime.now();
+      _dragged = false;
+      _pinched = false;
+      _yawVelocity = 0;
+      _pitchVelocity = 0;
+      _spinTicker.stop();
+      _spinLast = null;
+    } else {
+      _activePointer = null;
+      _dragged = true;
+      _pinched = true;
+      _yawVelocity = 0;
+      _pitchVelocity = 0;
+      _spinTicker.stop();
+      _spinLast = null;
+      _lastPinchDistance = _currentPinchDistance();
+    }
   }
 
   void _onPointerMove(PointerMoveEvent event) {
-    if (event.pointer != _activePointer) return;
+    if (_pointers.containsKey(event.pointer)) {
+      _pointers[event.pointer] = event.localPosition;
+    }
+
+    if (_pointers.length >= 2) {
+      final dist = _currentPinchDistance();
+      if (_lastPinchDistance != null &&
+          _lastPinchDistance! > 1.0 &&
+          dist != null &&
+          dist > 1.0) {
+        final scaleDelta = dist / _lastPinchDistance!;
+        setState(() {
+          _zoom = (_zoom * scaleDelta).clamp(_minZoom, _maxZoom);
+        });
+      }
+      _lastPinchDistance = dist;
+      return;
+    }
+
+    if (event.pointer != _activePointer || _pinched) return;
 
     final now = DateTime.now();
     final delta = event.localPosition - _lastPos;
@@ -184,11 +245,11 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     if (_dragged) {
       final dt = now.difference(_lastMoveTime).inMicroseconds / 1e6;
       setState(() {
-        _spinBy(-delta.dx * 0.012, -delta.dy * 0.010);
+        _spinBy(delta.dx * 0.012, delta.dy * 0.010);
       });
       if (dt > 0.001 && dt < 0.05) {
-        final yawInst = (-delta.dx * 0.012 / dt).clamp(-4.0, 4.0).toDouble();
-        final pitchInst = (-delta.dy * 0.010 / dt).clamp(-3.4, 3.4).toDouble();
+        final yawInst = (delta.dx * 0.012 / dt).clamp(-4.0, 4.0).toDouble();
+        final pitchInst = (delta.dy * 0.010 / dt).clamp(-3.4, 3.4).toDouble();
         _yawVelocity = _yawVelocity * 0.45 + yawInst * 0.55;
         _pitchVelocity = _pitchVelocity * 0.45 + pitchInst * 0.55;
       }
@@ -199,6 +260,16 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   }
 
   void _onPointerUp(PointerUpEvent event, Size size) {
+    _pointers.remove(event.pointer);
+    if (_pointers.length < 2) {
+      _lastPinchDistance = null;
+    }
+    if (_pinched) {
+      if (_pointers.isEmpty) {
+        _pinched = false;
+      }
+      return;
+    }
     if (event.pointer != _activePointer) return;
     _activePointer = null;
     if (!_dragged) {
@@ -212,6 +283,13 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
+    _pointers.remove(event.pointer);
+    if (_pointers.length < 2) {
+      _lastPinchDistance = null;
+    }
+    if (_pointers.isEmpty) {
+      _pinched = false;
+    }
     if (event.pointer != _activePointer) return;
     _activePointer = null;
     _yawVelocity = 0;
@@ -296,6 +374,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
         orientation: _orientation,
         gridCols: widget.gridCols,
         gridRows: widget.gridRows,
+        zoom: _zoom,
       );
       final slop = screen.unit * 0.72;
       final depthBias = (1.15 - normal.z) * 18;
@@ -363,6 +442,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
                 onPointerMove: _onPointerMove,
                 onPointerUp: (event) => _onPointerUp(event, canvas),
                 onPointerCancel: _onPointerCancel,
+                onPointerSignal: _onPointerSignal,
                 child: AnimatedBuilder(
                   animation: Listenable.merge([_shakeAnimation, _exitController]),
                   builder: (context, child) {
@@ -376,6 +456,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
                         arrows: widget.arrows,
                         walls: effectiveWalls,
                         orientation: _orientation,
+                        zoom: _zoom,
                         shakingArrowId: _shakingArrowId,
                         shakeOffset: _shakeAnimation.value,
                       ),
@@ -518,10 +599,10 @@ class _CubeMath {
   static const double focal = 2.65;
   static const double fill = 0.30;
 
-  static Offset project(_Vec3 view, Size size) {
+  static Offset project(_Vec3 view, Size size, {double zoom = 1.0}) {
     final depth = math.max(0.35, cameraZ - view.z);
     final scale = focal / depth;
-    final cubeScale = size.shortestSide * fill;
+    final cubeScale = size.shortestSide * fill * zoom;
     return Offset(
       size.width / 2 + view.x * scale * cubeScale,
       size.height / 2 - view.y * scale * cubeScale,
@@ -535,6 +616,7 @@ class _ArrowCubePainter extends CustomPainter {
   final List<CanvasArrow> arrows;
   final List<MazeWall> walls;
   final _Quat orientation;
+  final double zoom;
   final int? shakingArrowId;
   final double shakeOffset;
 
@@ -547,6 +629,7 @@ class _ArrowCubePainter extends CustomPainter {
     required this.arrows,
     required this.walls,
     required this.orientation,
+    required this.zoom,
     required this.shakingArrowId,
     required this.shakeOffset,
   });
@@ -592,7 +675,7 @@ class _ArrowCubePainter extends CustomPainter {
       frame.origin + frame.axisV,
     ];
     final projected = corners
-        .map((corner) => _CubeMath.project(orientation.rotate(corner), size))
+        .map((corner) => _CubeMath.project(orientation.rotate(corner), size, zoom: zoom))
         .toList();
 
     final path = Path()..moveTo(projected.first.dx, projected.first.dy);
@@ -611,6 +694,7 @@ class _ArrowCubePainter extends CustomPainter {
       orientation: orientation,
       gridCols: gridCols,
       gridRows: gridRows,
+      zoom: zoom,
     );
     final edge = math.max(
           (projected[1] - projected[0]).distance,
@@ -759,10 +843,11 @@ _FaceScreen _buildFaceScreen({
   required _Quat orientation,
   required int gridCols,
   required int gridRows,
+  double zoom = 1.0,
 }) {
   Offset projectGrid(Offset grid) {
     final world = frame.gridToWorld(grid, gridCols, gridRows);
-    return _CubeMath.project(orientation.rotate(world), size);
+    return _CubeMath.project(orientation.rotate(world), size, zoom: zoom);
   }
 
   final mid = Offset(gridCols / 2, gridRows / 2);

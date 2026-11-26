@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:my_android_app/main.dart';
@@ -125,5 +126,42 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(2));
     expect(find.byKey(const ValueKey('mistake_edge_blur_overlay')), findsNothing);
+  });
+
+  testWidgets('Pinch and scroll wheel zoom work without triggering false taps',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+
+    final boardFinder = find.byType(PuzzleBoard);
+    final center = tester.getCenter(boardFinder);
+
+    // Two-finger pinch out to zoom in
+    final p1 = await tester.startGesture(center - const Offset(20, 0));
+    final p2 = await tester.startGesture(center + const Offset(20, 0));
+    await p1.moveBy(const Offset(-60, 0));
+    await p2.moveBy(const Offset(60, 0));
+    await tester.pump();
+    await p1.up();
+    await p2.up();
+    await tester.pumpAndSettle();
+
+    // Pinching should not trigger a mistake or exit an arrow
+    expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
+
+    // Scroll wheel zoom out and back in
+    final pointer = TestPointer(99, PointerDeviceKind.mouse);
+    await tester.sendEventToBinding(pointer.hover(center));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, 200)));
+    await tester.sendEventToBinding(pointer.scroll(const Offset(0, -250)));
+    await tester.pumpAndSettle();
+
+    // Tapping center arrow still works after zooming
+    await tester.tapAt(center);
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
   });
 }
