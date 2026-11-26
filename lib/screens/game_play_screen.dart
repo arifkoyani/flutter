@@ -36,6 +36,13 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     _loadLevel(widget.levelId);
   }
 
+  @override
+  void reassemble() {
+    super.reassemble();
+    // Hot reload cannot fill fields added to arrows already on screen.
+    _loadLevel(_level.id);
+  }
+
   void _loadLevel(int id) {
     _level = LevelsData.getLevel(id);
     _arrows = _level.arrows.map((a) => a.clone()).toList();
@@ -267,7 +274,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Tap arrows that have an unobstructed path to exit!',
+                        'Drag to spin the cube. Tap an arrow when its path is clear.',
                         style: TextStyle(
                           fontSize: 12,
                           color: Color(0xFF4B5563),
@@ -286,8 +293,9 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                   children: [
                     const SizedBox(height: 20),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 12.0),
                       child: PuzzleBoard(
+                        key: ValueKey(_level.id),
                         levelId: _level.id,
                         gridCols: _level.gridCols,
                         gridRows: _level.gridRows,
@@ -296,7 +304,16 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
                         onArrowTap: _onArrowTapped,
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Spin the cube to reach every face',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Color(0xFF8E8E93),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                   ],
                 ),
               ),
