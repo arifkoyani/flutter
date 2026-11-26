@@ -34,6 +34,9 @@ enum ArrowDirection {
   }
 }
 
+/// Which side of the arrow cube an arrow is attached to.
+enum CubeFace { front, back, left, right, top, bottom }
+
 /// A path-based arrow defined by continuous waypoints (straight or with turns)
 class CanvasArrow {
   final int id;
@@ -43,6 +46,10 @@ class CanvasArrow {
 
   /// Direction of the final segment (where arrowhead points)
   final ArrowDirection exitDirection;
+
+  /// Cube face this arrow lies on. Null only on instances kept alive across
+  /// a hot reload that added the field; [placedOn] treats that as the front.
+  final CubeFace? face;
 
   /// Color accent for the arrow
   final Color? color;
@@ -56,6 +63,7 @@ class CanvasArrow {
     required this.id,
     required this.points,
     required this.exitDirection,
+    this.face = CubeFace.front,
     this.color,
     this.isExited = false,
     this.exitDistance = 0.0,
@@ -64,6 +72,9 @@ class CanvasArrow {
 
   Offset get tip => points.last;
   Offset get start => points.first;
+
+  /// Face this arrow is drawn and tested on.
+  CubeFace get placedOn => face ?? CubeFace.front;
 
   /// Total length of the arrow along its path in grid units
   double get totalLength {
@@ -143,6 +154,7 @@ class CanvasArrow {
       id: id,
       points: List<Offset>.from(points),
       exitDirection: exitDirection,
+      face: placedOn,
       color: color,
       isExited: isExited,
       exitDistance: exitDistance,
