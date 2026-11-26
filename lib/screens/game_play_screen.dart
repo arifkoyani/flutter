@@ -20,7 +20,8 @@ class GamePlayScreen extends StatefulWidget {
   State<GamePlayScreen> createState() => _GamePlayScreenState();
 }
 
-class _GamePlayScreenState extends State<GamePlayScreen> {
+class _GamePlayScreenState extends State<GamePlayScreen>
+    with SingleTickerProviderStateMixin {
   static const Color primaryOrange = Color(0xFFFF550D);
 
   late PuzzleLevel _level;
@@ -30,10 +31,39 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
   bool _isGameOver = false;
   bool _isVictory = false;
 
+  late final AnimationController _mistakeFlashController;
+  late final Animation<double> _mistakeFlashAnimation;
+
   @override
   void initState() {
     super.initState();
+    _mistakeFlashController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
+    );
+    _mistakeFlashAnimation = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 0.0, end: 1.0)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 12,
+      ),
+      TweenSequenceItem(
+        tween: ConstantTween<double>(1.0),
+        weight: 28,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 0.0)
+            .chain(CurveTween(curve: Curves.easeOutCubic)),
+        weight: 60,
+      ),
+    ]).animate(_mistakeFlashController);
     _loadLevel(widget.levelId);
+  }
+
+  @override
+  void dispose() {
+    _mistakeFlashController.dispose();
+    super.dispose();
   }
 
   @override
@@ -50,6 +80,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
     _remainingArrows = _arrows.length;
     _isGameOver = false;
     _isVictory = false;
+    _mistakeFlashController.reset();
   }
 
   void _resetCurrentLevel() {
@@ -80,6 +111,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       setState(() {
         _mistakes++;
       });
+      _mistakeFlashController.forward(from: 0.0);
 
       if (PreferencesService.instance.isVibrationOn) {
         HapticFeedback.mediumImpact();
@@ -137,8 +169,10 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
+    return Stack(
+      children: [
+        Scaffold(
+          backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -321,6 +355,25 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
           ),
         ),
       ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _mistakeFlashAnimation,
+              builder: (context, _) {
+                final intensity = _mistakeFlashAnimation.value;
+                if (intensity <= 0.001) {
+                  return const SizedBox.shrink();
+                }
+                return CustomPaint(
+                  key: const ValueKey('mistake_edge_blur_overlay'),
+                  painter: _MistakeEdgeBlurPainter(intensity: intensity),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -427,7 +480,7 @@ class _GamePlayScreenState extends State<GamePlayScreen> {
       backgroundColor: Colors.white,
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 380),
+        duration: const Duration(seconds: 1),
         curve: Curves.easeOutBack,
         builder: (context, t, child) {
           return Opacity(
@@ -534,4 +587,34 @@ class _BelowBannerClipper extends CustomClipper<Rect> {
 
   @override
   bool shouldReclip(covariant CustomClipper<Rect> oldClipper) => false;
+}
+
+/// Renders a brief light-red Gaussian blur vignette around the screen edges
+/// when the player taps a blocked (wrong) arrow.
+class _MistakeEdgeBlurPainter extends CustomPainter {
+  final double intensity;
+
+  const _MistakeEdgeBlurPainter({required this.intensity});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (intensity <= 0.0 || size.isEmpty) return;
+
+    canvas.save();
+    canvas.clipRect(Offset.zero & size);
+
+    final edgePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 48.0
+      ..color = const Color(0xFFFF3B30).withValues(alpha: 0.78 * intensity)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 36.0);
+
+    canvas.drawRect(Offset.zero & size, edgePaint);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _MistakeEdgeBlurPainter oldDelegate) {
+    return oldDelegate.intensity != intensity;
+  }
 }

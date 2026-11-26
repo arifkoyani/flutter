@@ -100,4 +100,30 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SettingScreen), findsOneWidget);
   });
+
+  testWidgets('Wrong arrow attempt shows instant red edge Gaussian blur flash',
+      (WidgetTester tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+
+    expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
+    expect(find.byKey(const ValueKey('mistake_edge_blur_overlay')), findsNothing);
+
+    final board = tester.widget<PuzzleBoard>(find.byType(PuzzleBoard));
+    board.onArrowTap(board.arrows.first, false);
+
+    // First pump starts the ticker; second pump advances into the flash
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+    expect(find.byIcon(Icons.favorite_border_rounded), findsOneWidget);
+    expect(find.byKey(const ValueKey('mistake_edge_blur_overlay')), findsOneWidget);
+
+    // After the brief flash finishes, the overlay clears and 2 live hearts remain
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('mistake_edge_blur_overlay')), findsNothing);
+  });
 }
