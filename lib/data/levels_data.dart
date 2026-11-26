@@ -182,138 +182,269 @@ class LevelsData {
     );
   }
 
-  /// Solvable arrow sets for the five faces around the original front puzzle.
-  /// Blocking is per face: an arrow can leave only when its outward ray is clear.
+  /// Denser solvable sets for the five faces around the front puzzle.
   static List<CanvasArrow> _sideFaceArrows() {
     return [
-      // Right — 101 and 102 are free; they release 104 and 103.
+      // Right: three free columns, six arrows waiting behind them.
       CanvasArrow(
         id: 101,
         face: CubeFace.right,
-        points: const [Offset(0.7, 0.7), Offset(5.4, 0.7)],
-        exitDirection: ArrowDirection.right,
+        points: const [Offset(0.5, 0.4), Offset(0.5, 5.6)],
+        exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 102,
         face: CubeFace.right,
-        points: const [Offset(1.5, 2.0), Offset(1.5, 5.6)],
+        points: const [Offset(3.0, 0.4), Offset(3.0, 5.6)],
         exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 103,
         face: CubeFace.right,
-        points: const [Offset(5.5, 4.6), Offset(2.4, 4.6)],
-        exitDirection: ArrowDirection.left,
+        points: const [Offset(5.5, 0.4), Offset(5.5, 5.6)],
+        exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 104,
         face: CubeFace.right,
-        points: const [Offset(4.4, 3.2), Offset(4.4, 1.3)],
-        exitDirection: ArrowDirection.up,
+        points: const [Offset(1.1, 1.1), Offset(2.3, 1.1)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 105,
+        face: CubeFace.right,
+        points: const [Offset(1.1, 2.7), Offset(2.3, 2.7)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 106,
+        face: CubeFace.right,
+        points: const [Offset(1.1, 4.3), Offset(2.3, 4.3)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 107,
+        face: CubeFace.right,
+        points: const [Offset(3.6, 1.6), Offset(4.85, 1.6)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 108,
+        face: CubeFace.right,
+        points: const [Offset(3.6, 3.3), Offset(4.85, 3.3)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 109,
+        face: CubeFace.right,
+        points: const [Offset(3.6, 5.0), Offset(4.85, 5.0)],
+        exitDirection: ArrowDirection.right,
       ),
 
-      // Left — 201 releases 203, which releases 204. 202 is free.
+      // Left: three free rows, six arrows waiting above them.
       CanvasArrow(
         id: 201,
         face: CubeFace.left,
-        points: const [Offset(0.6, 1.0), Offset(5.4, 1.0)],
+        points: const [Offset(0.4, 0.5), Offset(5.6, 0.5)],
         exitDirection: ArrowDirection.right,
       ),
       CanvasArrow(
         id: 202,
         face: CubeFace.left,
-        points: const [Offset(1.8, 2.2), Offset(1.8, 5.5)],
-        exitDirection: ArrowDirection.down,
+        points: const [Offset(0.4, 3.0), Offset(5.6, 3.0)],
+        exitDirection: ArrowDirection.right,
       ),
       CanvasArrow(
         id: 203,
         face: CubeFace.left,
-        points: const [Offset(3.4, 5.4), Offset(3.4, 1.7)],
-        exitDirection: ArrowDirection.up,
+        points: const [Offset(0.4, 5.5), Offset(5.6, 5.5)],
+        exitDirection: ArrowDirection.right,
       ),
       CanvasArrow(
         id: 204,
         face: CubeFace.left,
-        points: const [Offset(5.5, 3.2), Offset(4.2, 3.2)],
-        exitDirection: ArrowDirection.left,
+        points: const [Offset(1.2, 1.1), Offset(1.2, 2.4)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 205,
+        face: CubeFace.left,
+        points: const [Offset(3.0, 1.1), Offset(3.0, 2.4)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 206,
+        face: CubeFace.left,
+        points: const [Offset(4.8, 1.1), Offset(4.8, 2.4)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 207,
+        face: CubeFace.left,
+        points: const [Offset(1.2, 3.6), Offset(1.2, 4.9)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 208,
+        face: CubeFace.left,
+        points: const [Offset(3.0, 3.6), Offset(3.0, 4.9)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 209,
+        face: CubeFace.left,
+        points: const [Offset(4.8, 3.6), Offset(4.8, 4.9)],
+        exitDirection: ArrowDirection.down,
       ),
 
-      // Back — 301 blocks 302 and 304. 303 is free.
+      // Back
       CanvasArrow(
         id: 301,
         face: CubeFace.back,
-        points: const [Offset(0.6, 5.0), Offset(5.4, 5.0)],
-        exitDirection: ArrowDirection.right,
+        points: const [Offset(1.2, 0.4), Offset(1.2, 5.6)],
+        exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 302,
         face: CubeFace.back,
-        points: const [Offset(1.4, 0.6), Offset(1.4, 4.2)],
+        points: const [Offset(4.6, 0.4), Offset(4.6, 5.6)],
         exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 303,
         face: CubeFace.back,
-        points: const [Offset(3.2, 0.7), Offset(5.5, 0.7)],
-        exitDirection: ArrowDirection.right,
+        points: const [Offset(0.4, 1.2), Offset(0.4, 5.2)],
+        exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 304,
         face: CubeFace.back,
-        points: const [Offset(4.4, 2.0), Offset(4.4, 4.2)],
+        points: const [Offset(5.2, 1.0), Offset(5.2, 5.2)],
         exitDirection: ArrowDirection.down,
       ),
+      CanvasArrow(
+        id: 305,
+        face: CubeFace.back,
+        points: const [Offset(1.8, 1.1), Offset(4.0, 1.1)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 306,
+        face: CubeFace.back,
+        points: const [Offset(1.8, 2.5), Offset(4.0, 2.5)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 307,
+        face: CubeFace.back,
+        points: const [Offset(1.8, 3.9), Offset(4.0, 3.9)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 308,
+        face: CubeFace.back,
+        points: const [Offset(1.8, 5.2), Offset(4.0, 5.2)],
+        exitDirection: ArrowDirection.right,
+      ),
 
-      // Top — 401 blocks 402 and 403. 404 is free.
+      // Top
       CanvasArrow(
         id: 401,
         face: CubeFace.top,
-        points: const [Offset(0.6, 3.2), Offset(5.5, 3.2)],
+        points: const [Offset(0.4, 1.5), Offset(5.6, 1.5)],
         exitDirection: ArrowDirection.right,
       ),
       CanvasArrow(
         id: 402,
         face: CubeFace.top,
-        points: const [Offset(1.6, 0.6), Offset(1.6, 2.5)],
-        exitDirection: ArrowDirection.down,
+        points: const [Offset(0.4, 4.5), Offset(5.6, 4.5)],
+        exitDirection: ArrowDirection.right,
       ),
       CanvasArrow(
         id: 403,
         face: CubeFace.top,
-        points: const [Offset(4.0, 0.7), Offset(4.0, 2.5)],
-        exitDirection: ArrowDirection.down,
+        points: const [Offset(0.6, 0.4), Offset(5.4, 0.4)],
+        exitDirection: ArrowDirection.right,
       ),
       CanvasArrow(
         id: 404,
         face: CubeFace.top,
-        points: const [Offset(3.2, 4.4), Offset(5.4, 4.4)],
+        points: const [Offset(1.2, 5.05), Offset(4.6, 5.05)],
         exitDirection: ArrowDirection.right,
       ),
+      CanvasArrow(
+        id: 405,
+        face: CubeFace.top,
+        points: const [Offset(1.3, 2.1), Offset(1.3, 3.9)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 406,
+        face: CubeFace.top,
+        points: const [Offset(2.9, 2.1), Offset(2.9, 3.9)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 407,
+        face: CubeFace.top,
+        points: const [Offset(4.5, 2.1), Offset(4.5, 3.9)],
+        exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 408,
+        face: CubeFace.top,
+        points: const [Offset(5.3, 2.2), Offset(5.3, 3.9)],
+        exitDirection: ArrowDirection.down,
+      ),
 
-      // Bottom — 501 blocks 502 and 503. 504 is free.
+      // Bottom
       CanvasArrow(
         id: 501,
         face: CubeFace.bottom,
-        points: const [Offset(4.2, 0.6), Offset(4.2, 5.4)],
+        points: const [Offset(1.5, 0.4), Offset(1.5, 5.6)],
         exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 502,
         face: CubeFace.bottom,
-        points: const [Offset(0.6, 1.4), Offset(3.4, 1.4)],
-        exitDirection: ArrowDirection.right,
+        points: const [Offset(4.5, 0.4), Offset(4.5, 5.6)],
+        exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 503,
         face: CubeFace.bottom,
-        points: const [Offset(0.6, 3.2), Offset(3.4, 3.2)],
-        exitDirection: ArrowDirection.right,
+        points: const [Offset(0.45, 0.8), Offset(0.45, 5.2)],
+        exitDirection: ArrowDirection.down,
       ),
       CanvasArrow(
         id: 504,
         face: CubeFace.bottom,
-        points: const [Offset(1.4, 4.3), Offset(1.4, 5.6)],
+        points: const [Offset(5.2, 0.8), Offset(5.2, 5.2)],
         exitDirection: ArrowDirection.down,
+      ),
+      CanvasArrow(
+        id: 505,
+        face: CubeFace.bottom,
+        points: const [Offset(2.1, 1.1), Offset(3.9, 1.1)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 506,
+        face: CubeFace.bottom,
+        points: const [Offset(2.1, 2.5), Offset(3.9, 2.5)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 507,
+        face: CubeFace.bottom,
+        points: const [Offset(2.1, 4.0), Offset(3.9, 4.0)],
+        exitDirection: ArrowDirection.right,
+      ),
+      CanvasArrow(
+        id: 508,
+        face: CubeFace.bottom,
+        points: const [Offset(2.1, 5.3), Offset(3.9, 5.3)],
+        exitDirection: ArrowDirection.right,
       ),
     ];
   }

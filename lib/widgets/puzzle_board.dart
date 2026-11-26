@@ -31,7 +31,6 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     with TickerProviderStateMixin {
   static const double _restYaw = -0.72;
   static const double _restPitch = 0.50;
-  static const double _maxPitch = 1.42;
 
   int? _shakingArrowId;
   int? _exitingArrowId;
@@ -43,8 +42,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   late Animation<double> _exitAnimation;
   CanvasArrow? _animatingArrow;
 
-  double _yaw = _restYaw;
-  double _pitch = _restPitch;
+  late _Quat _orientation = _Quat.axisAngle(const _Vec3(1, 0, 0), _restPitch)
+      .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), _restYaw));
   double _yawVelocity = 0;
   double _pitchVelocity = 0;
   late final Ticker _spinTicker;
@@ -119,8 +118,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     _shakeController.stop();
 
     if (levelChanged) {
-      _yaw = _restYaw;
-      _pitch = _restPitch;
+      _orientation = _Quat.axisAngle(const _Vec3(1, 0, 0), _restPitch)
+          .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), _restYaw));
       _yawVelocity = 0;
       _pitchVelocity = 0;
       _spinTicker.stop();
@@ -156,14 +155,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     }
 
     setState(() {
-      _yaw = _wrapAngle(_yaw + _yawVelocity * dt);
-      final nextPitch = _pitch + _pitchVelocity * dt;
-      if (nextPitch > _maxPitch || nextPitch < -_maxPitch) {
-        _pitch = nextPitch.clamp(-_maxPitch, _maxPitch).toDouble();
-        _pitchVelocity = 0;
-      } else {
-        _pitch = nextPitch;
-      }
+      _spinBy(_yawVelocity * dt, _pitchVelocity * dt);
     });
   }
 
@@ -192,8 +184,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     if (_dragged) {
       final dt = now.difference(_lastMoveTime).inMicroseconds / 1e6;
       setState(() {
-        _yaw = _wrapAngle(_yaw - delta.dx * 0.012);
-        _pitch = (_pitch - delta.dy * 0.010).clamp(-_maxPitch, _maxPitch).toDouble();
+        _spinBy(-delta.dx * 0.012, -delta.dy * 0.010);
       });
       if (dt > 0.001 && dt < 0.05) {
         final yawInst = (-delta.dx * 0.012 / dt).clamp(-4.0, 4.0).toDouble();
@@ -291,64 +282,42 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   }
 
   CanvasArrow? _pickArrow(Offset tap, Size size) {
-    final hit = _raycastFace(tap, size);
-    if (hit == null) return null;
-
     CanvasArrow? tapped;
-    var closest = double.infinity;
-    for (final arrow in widget.arrows) {
-      if (arrow.isExited || arrow.placedOn != hit.face) continue;
-      for (var i = 0; i < arrow.points.length - 1; i++) {
-        final dist = _distanceToSegment(hit.grid, arrow.points[i], arrow.points[i + 1]);
-        if (dist < 0.7 && dist < closest) {
-          closest = dist;
-          tapped = arrow;
+    var bestRank = double.infinity;
+
+    for (final face in CubeFace.values) {
+      final frame = _FaceFrame.of(face);
+      final normal = _orientation.rotate(frame.normal);
+      if (normal.z <= 0.05) continue;
+
+      final screen = _buildFaceScreen(
+        frame: frame,
+        size: size,
+        orientation: _orientation,
+        gridCols: widget.gridCols,
+        gridRows: widget.gridRows,
+      );
+      final slop = screen.unit * 0.72;
+      final depthBias = (1.15 - normal.z) * 18;
+
+      for (final arrow in widget.arrows) {
+        if (arrow.isExited || arrow.placedOn != face) continue;
+        for (var i = 0; i < arrow.points.length - 1; i++) {
+          final dist = _distanceToSegment(
+            tap,
+            screen.map(arrow.points[i]),
+            screen.map(arrow.points[i + 1]),
+          );
+          if (dist > slop) continue;
+          final rank = dist + depthBias;
+          if (rank < bestRank) {
+            bestRank = rank;
+            tapped = arrow;
+          }
         }
       }
     }
     return tapped;
-  }
-
-  _FaceHit? _raycastFace(Offset tap, Size size) {
-    final cubeScale = size.shortestSide * _CubeMath.fill;
-    final ndcX = (tap.dx - size.width / 2) / cubeScale;
-    final ndcY = (size.height / 2 - tap.dy) / cubeScale;
-    final dir = _Vec3(ndcX / _CubeMath.focal, ndcY / _CubeMath.focal, -1);
-    const origin = _Vec3(0, 0, _CubeMath.cameraZ);
-
-    CubeFace? bestFace;
-    Offset? bestGrid;
-    var bestT = double.infinity;
-
-    for (final face in CubeFace.values) {
-      final frame = _FaceFrame.of(face);
-      final normal = _CubeMath.rotate(frame.normal, _yaw, _pitch);
-      if (normal.z <= 0.02) continue;
-
-      final center = _CubeMath.rotate(
-        frame.origin + frame.axisU * 0.5 + frame.axisV * 0.5,
-        _yaw,
-        _pitch,
-      );
-      final denom = normal.dot(dir);
-      if (denom.abs() < 1e-5) continue;
-      final t = normal.dot(center - origin) / denom;
-      if (t <= 0 || t >= bestT) continue;
-
-      final hitView = origin + dir * t;
-      final hitWorld = _CubeMath.unrotate(hitView, _yaw, _pitch);
-      final rel = hitWorld - frame.origin;
-      final u = rel.dot(frame.axisU) / frame.axisU.dot(frame.axisU);
-      final v = rel.dot(frame.axisV) / frame.axisV.dot(frame.axisV);
-      if (u < -0.04 || u > 1.04 || v < -0.04 || v > 1.04) continue;
-
-      bestT = t;
-      bestFace = face;
-      bestGrid = Offset(u * widget.gridCols, v * widget.gridRows);
-    }
-
-    if (bestFace == null || bestGrid == null) return null;
-    return _FaceHit(bestFace, bestGrid);
   }
 
   double _distanceToSegment(Offset p, Offset a, Offset b) {
@@ -362,12 +331,11 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     return (p - projection).distance;
   }
 
-  double _wrapAngle(double angle) {
-    const twoPi = math.pi * 2;
-    var wrapped = angle % twoPi;
-    if (wrapped > math.pi) wrapped -= twoPi;
-    if (wrapped < -math.pi) wrapped += twoPi;
-    return wrapped;
+  /// Screen-axis spin. Keeps going on both axes with no stop.
+  void _spinBy(double yawDelta, double pitchDelta) {
+    final turn = _Quat.axisAngle(const _Vec3(1, 0, 0), pitchDelta)
+        .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), yawDelta));
+    _orientation = turn.multiplied(_orientation).normalized();
   }
 
   @override
@@ -407,8 +375,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
                         gridRows: widget.gridRows,
                         arrows: widget.arrows,
                         walls: effectiveWalls,
-                        yaw: _yaw,
-                        pitch: _pitch,
+                        orientation: _orientation,
                         shakingArrowId: _shakingArrowId,
                         shakeOffset: _shakeAnimation.value,
                       ),
@@ -424,12 +391,6 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   }
 }
 
-class _FaceHit {
-  final CubeFace face;
-  final Offset grid;
-  const _FaceHit(this.face, this.grid);
-}
-
 class _Vec3 {
   final double x;
   final double y;
@@ -442,6 +403,50 @@ class _Vec3 {
   _Vec3 operator *(double scale) => _Vec3(x * scale, y * scale, z * scale);
 
   double dot(_Vec3 other) => x * other.x + y * other.y + z * other.z;
+}
+
+class _Quat {
+  final double x;
+  final double y;
+  final double z;
+  final double w;
+
+  const _Quat(this.x, this.y, this.z, this.w);
+
+  static _Quat axisAngle(_Vec3 axis, double radians) {
+    final half = radians * 0.5;
+    final s = math.sin(half);
+    final len = math.sqrt(axis.x * axis.x + axis.y * axis.y + axis.z * axis.z);
+    if (len == 0) return const _Quat(0, 0, 0, 1);
+    final scale = s / len;
+    return _Quat(axis.x * scale, axis.y * scale, axis.z * scale, math.cos(half));
+  }
+
+  _Quat multiplied(_Quat other) {
+    return _Quat(
+      w * other.x + x * other.w + y * other.z - z * other.y,
+      w * other.y - x * other.z + y * other.w + z * other.x,
+      w * other.z + x * other.y - y * other.x + z * other.w,
+      w * other.w - x * other.x - y * other.y - z * other.z,
+    );
+  }
+
+  _Quat normalized() {
+    final len = math.sqrt(x * x + y * y + z * z + w * w);
+    if (len == 0) return const _Quat(0, 0, 0, 1);
+    return _Quat(x / len, y / len, z / len, w / len);
+  }
+
+  _Vec3 rotate(_Vec3 v) {
+    final tx = 2 * (y * v.z - z * v.y);
+    final ty = 2 * (z * v.x - x * v.z);
+    final tz = 2 * (x * v.y - y * v.x);
+    return _Vec3(
+      v.x + w * tx + (y * tz - z * ty),
+      v.y + w * ty + (z * tx - x * tz),
+      v.z + w * tz + (x * ty - y * tx),
+    );
+  }
 }
 
 class _FaceFrame {
@@ -513,26 +518,6 @@ class _CubeMath {
   static const double focal = 2.65;
   static const double fill = 0.30;
 
-  static _Vec3 rotate(_Vec3 p, double yaw, double pitch) {
-    final cy = math.cos(yaw);
-    final sy = math.sin(yaw);
-    final x1 = p.x * cy + p.z * sy;
-    final z1 = -p.x * sy + p.z * cy;
-    final cx = math.cos(pitch);
-    final sx = math.sin(pitch);
-    return _Vec3(x1, p.y * cx - z1 * sx, p.y * sx + z1 * cx);
-  }
-
-  static _Vec3 unrotate(_Vec3 p, double yaw, double pitch) {
-    final cx = math.cos(pitch);
-    final sx = math.sin(pitch);
-    final y1 = p.y * cx + p.z * sx;
-    final z1 = -p.y * sx + p.z * cx;
-    final cy = math.cos(yaw);
-    final sy = math.sin(yaw);
-    return _Vec3(p.x * cy - z1 * sy, y1, p.x * sy + z1 * cy);
-  }
-
   static Offset project(_Vec3 view, Size size) {
     final depth = math.max(0.35, cameraZ - view.z);
     final scale = focal / depth;
@@ -549,8 +534,7 @@ class _ArrowCubePainter extends CustomPainter {
   final int gridRows;
   final List<CanvasArrow> arrows;
   final List<MazeWall> walls;
-  final double yaw;
-  final double pitch;
+  final _Quat orientation;
   final int? shakingArrowId;
   final double shakeOffset;
 
@@ -562,19 +546,16 @@ class _ArrowCubePainter extends CustomPainter {
     required this.gridRows,
     required this.arrows,
     required this.walls,
-    required this.yaw,
-    required this.pitch,
+    required this.orientation,
     required this.shakingArrowId,
     required this.shakeOffset,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    _paintShadow(canvas, size);
-
     final faces = <CubeFace>[];
     for (final face in CubeFace.values) {
-      final normal = _CubeMath.rotate(_FaceFrame.of(face).normal, yaw, pitch);
+      final normal = orientation.rotate(_FaceFrame.of(face).normal);
       if (normal.z > 0.015) faces.add(face);
     }
     faces.sort((a, b) {
@@ -590,27 +571,14 @@ class _ArrowCubePainter extends CustomPainter {
 
   _Vec3 _faceCenter(CubeFace face) {
     final frame = _FaceFrame.of(face);
-    return _CubeMath.rotate(
+    return orientation.rotate(
       frame.origin + frame.axisU * 0.5 + frame.axisV * 0.5,
-      yaw,
-      pitch,
-    );
-  }
-
-  void _paintShadow(Canvas canvas, Size size) {
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(size.width / 2, size.height * 0.80),
-        width: size.width * 0.42,
-        height: size.height * 0.065,
-      ),
-      Paint()..color = const Color(0x14000000),
     );
   }
 
   void _paintFace(Canvas canvas, Size size, CubeFace face) {
     final frame = _FaceFrame.of(face);
-    final normal = _CubeMath.rotate(frame.normal, yaw, pitch);
+    final normal = orientation.rotate(frame.normal);
     final lightLen = math.sqrt(
       _light.x * _light.x + _light.y * _light.y + _light.z * _light.z,
     );
@@ -624,7 +592,7 @@ class _ArrowCubePainter extends CustomPainter {
       frame.origin + frame.axisV,
     ];
     final projected = corners
-        .map((corner) => _CubeMath.project(_CubeMath.rotate(corner, yaw, pitch), size))
+        .map((corner) => _CubeMath.project(orientation.rotate(corner), size))
         .toList();
 
     final path = Path()..moveTo(projected.first.dx, projected.first.dy);
@@ -633,30 +601,41 @@ class _ArrowCubePainter extends CustomPainter {
     }
     path.close();
 
-    final fill = Color.lerp(const Color(0xFFD7DDE6), _baseColor(face), shade)!;
+    final fill = Color.lerp(const Color(0xFFD7DDE6), _baseColor(face), shade)!
+        .withValues(alpha: 0.95);
     canvas.drawPath(path, Paint()..color = fill);
 
-    final originPx = projected.first;
-    final unit = (projected[1] - originPx).distance / gridCols;
+    final screen = _buildFaceScreen(
+      frame: frame,
+      size: size,
+      orientation: orientation,
+      gridCols: gridCols,
+      gridRows: gridRows,
+    );
+    final edge = math.max(
+          (projected[1] - projected[0]).distance,
+          (projected[3] - projected[0]).distance,
+        ) /
+        gridCols;
     canvas.drawPath(
       path,
       Paint()
-        ..color = const Color(0xFF9AA3B2)
+        ..color = const Color(0xFF8B95A3)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = (unit * 0.09).clamp(1.4, 2.8).toDouble()
+        ..strokeWidth = (edge * 0.16).clamp(0.5, 0.5).toDouble()
         ..strokeJoin = StrokeJoin.round,
     );
 
     if (face == CubeFace.front && walls.isNotEmpty) {
       final wallPaint = Paint()
         ..color = Colors.black
-        ..strokeWidth = (unit * 0.16).clamp(2.5, 6).toDouble()
+        ..strokeWidth = (screen.unit * 0.16).clamp(2.5, 6).toDouble()
         ..strokeCap = StrokeCap.round
         ..style = PaintingStyle.stroke;
       for (final wall in walls) {
         canvas.drawLine(
-          _projectGrid(frame, wall.from, size),
-          _projectGrid(frame, wall.to, size),
+          screen.map(wall.from),
+          screen.map(wall.to),
           wallPaint,
         );
       }
@@ -664,7 +643,7 @@ class _ArrowCubePainter extends CustomPainter {
 
     for (final arrow in arrows) {
       if (arrow.placedOn != face || arrow.isExited) continue;
-      _paintArrow(canvas, size, frame, arrow, unit);
+      _paintArrow(canvas, screen, arrow);
     }
   }
 
@@ -685,18 +664,7 @@ class _ArrowCubePainter extends CustomPainter {
     }
   }
 
-  Offset _projectGrid(_FaceFrame frame, Offset grid, Size size) {
-    final world = frame.gridToWorld(grid, gridCols, gridRows);
-    return _CubeMath.project(_CubeMath.rotate(world, yaw, pitch), size);
-  }
-
-  void _paintArrow(
-    Canvas canvas,
-    Size size,
-    _FaceFrame frame,
-    CanvasArrow arrow,
-    double unit,
-  ) {
+  void _paintArrow(Canvas canvas, _FaceScreen screen, CanvasArrow arrow) {
     final isShaking = arrow.id == shakingArrowId;
     final arrowColor = isShaking ? const Color(0xFFFF3B30) : primaryOrange;
 
@@ -705,64 +673,102 @@ class _ArrowCubePainter extends CustomPainter {
         : List<Offset>.from(arrow.points);
     if (activeGrid.length < 2) return;
 
-    final pixelPoints =
-        activeGrid.map((point) => _projectGrid(frame, point, size)).toList();
+    final tip = activeGrid.last;
+    final prev = activeGrid[activeGrid.length - 2];
+    final delta = tip - prev;
+    final deltaLen = delta.distance;
+    if (deltaLen < 0.001) return;
+    final dir = delta / deltaLen;
 
-    final tip = pixelPoints.last;
-    final prev = pixelPoints[pixelPoints.length - 2];
-    final angle = math.atan2(tip.dy - prev.dy, tip.dx - prev.dx);
-    final shift = isShaking
-        ? Offset(-math.sin(angle), math.cos(angle)) * shakeOffset
-        : Offset.zero;
-    if (shift != Offset.zero) {
-      for (var i = 0; i < pixelPoints.length; i++) {
-        pixelPoints[i] = pixelPoints[i] + shift;
-      }
+    var points = activeGrid;
+    if (isShaking && screen.unit > 0.001) {
+      final perp = Offset(-dir.dy, dir.dx);
+      final gridShake = shakeOffset / screen.unit * 0.35;
+      points = activeGrid.map((point) => point + perp * gridShake).toList();
     }
 
-    final shaft = Path()..moveTo(pixelPoints.first.dx, pixelPoints.first.dy);
-    for (var i = 1; i < pixelPoints.length; i++) {
-      shaft.lineTo(pixelPoints[i].dx, pixelPoints[i].dy);
+    const shaftHalf = 0.15;
+    const headLen = 0.5;
+    const headHalf = 0.30;
+
+    final headBase = points.last - dir * math.min(headLen, deltaLen * 0.7);
+    final shaft = List<Offset>.from(points);
+    shaft[shaft.length - 1] = headBase;
+
+    final fill = Paint()..color = arrowColor;
+    for (var i = 0; i < shaft.length - 1; i++) {
+      _fillGridQuad(canvas, screen, shaft[i], shaft[i + 1], shaftHalf, fill);
     }
 
-    canvas.drawPath(
-      shaft,
-      Paint()
-        ..color = arrowColor
-        ..strokeWidth = (unit * 0.22).clamp(3.4, 8.0).toDouble()
-        ..strokeCap = StrokeCap.round
-        ..strokeJoin = StrokeJoin.round
-        ..style = PaintingStyle.stroke,
+    final side = Offset(-dir.dy, dir.dx) * headHalf;
+    _fillGridPolygon(
+      canvas,
+      screen,
+      [points.last, headBase + side, headBase - side],
+      fill,
     );
+  }
 
-    final headTip = pixelPoints.last;
-    final headPrev = pixelPoints[pixelPoints.length - 2];
-    final headAngle = math.atan2(headTip.dy - headPrev.dy, headTip.dx - headPrev.dx);
-    final headLength = (unit * 0.52).clamp(9.0, 18.0).toDouble();
-    final headWidth = (unit * 0.42).clamp(8.0, 15.0).toDouble();
+  void _fillGridQuad(
+    Canvas canvas,
+    _FaceScreen screen,
+    Offset a,
+    Offset b,
+    double half,
+    Paint paint,
+  ) {
+    final delta = b - a;
+    final len = delta.distance;
+    if (len < 0.001) return;
+    final side = Offset(-delta.dy, delta.dx) / len * half;
+    _fillGridPolygon(canvas, screen, [a + side, b + side, b - side, a - side], paint);
+  }
 
-    final head = Path()
-      ..moveTo(headTip.dx, headTip.dy)
-      ..lineTo(
-        headTip.dx - headLength * math.cos(headAngle) + (headWidth / 2) * math.sin(headAngle),
-        headTip.dy - headLength * math.sin(headAngle) - (headWidth / 2) * math.cos(headAngle),
-      )
-      ..lineTo(
-        headTip.dx - headLength * math.cos(headAngle) - (headWidth / 2) * math.sin(headAngle),
-        headTip.dy - headLength * math.sin(headAngle) + (headWidth / 2) * math.cos(headAngle),
-      )
-      ..close();
-
-    canvas.drawPath(head, Paint()..color = arrowColor);
-    canvas.drawPath(
-      head,
-      Paint()
-        ..color = isShaking ? const Color(0xFFFF3B30) : const Color(0xFFD63031)
-        ..strokeWidth = 1.4
-        ..style = PaintingStyle.stroke,
-    );
+  void _fillGridPolygon(
+    Canvas canvas,
+    _FaceScreen screen,
+    List<Offset> gridPoints,
+    Paint paint,
+  ) {
+    if (gridPoints.length < 3) return;
+    final path = Path()..moveTo(screen.map(gridPoints.first).dx, screen.map(gridPoints.first).dy);
+    for (var i = 1; i < gridPoints.length; i++) {
+      final pixel = screen.map(gridPoints[i]);
+      path.lineTo(pixel.dx, pixel.dy);
+    }
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   @override
   bool shouldRepaint(covariant _ArrowCubePainter oldDelegate) => true;
+}
+
+class _FaceScreen {
+  final double unit;
+  final Offset Function(Offset grid) map;
+
+  const _FaceScreen({required this.unit, required this.map});
+}
+
+/// Projects each 2D arrow point onto its cube face so the arrow stays
+/// fixed to that surface while the cube turns.
+_FaceScreen _buildFaceScreen({
+  required _FaceFrame frame,
+  required Size size,
+  required _Quat orientation,
+  required int gridCols,
+  required int gridRows,
+}) {
+  Offset projectGrid(Offset grid) {
+    final world = frame.gridToWorld(grid, gridCols, gridRows);
+    return _CubeMath.project(orientation.rotate(world), size);
+  }
+
+  final mid = Offset(gridCols / 2, gridRows / 2);
+  final center = projectGrid(mid);
+  final stepU = (projectGrid(mid + const Offset(1, 0)) - center).distance;
+  final stepV = (projectGrid(mid + const Offset(0, 1)) - center).distance;
+
+  return _FaceScreen(unit: math.min(stepU, stepV), map: projectGrid);
 }
