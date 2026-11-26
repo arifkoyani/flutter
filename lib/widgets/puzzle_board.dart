@@ -60,6 +60,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   bool _dragged = false;
   final Map<int, Offset> _pointers = {};
   double? _lastPinchDistance;
+  Offset? _lastPinchCenter;
+  double? _lastPinchAngle;
   bool _pinched = false;
 
   @override
@@ -132,6 +134,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       _zoom = 1.0;
       _pointers.clear();
       _lastPinchDistance = null;
+      _lastPinchCenter = null;
+      _lastPinchAngle = null;
       _pinched = false;
       _spinTicker.stop();
       _spinLast = null;
@@ -151,8 +155,9 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     _spinLast = elapsed;
     if (previous == null) return;
 
-    final dt = (elapsed - previous).inMicroseconds / 1e6;
-    if (dt <= 0 || dt > 0.05) return;
+    final rawDt = (elapsed - previous).inMicroseconds / 1e6;
+    if (rawDt <= 0) return;
+    final dt = math.min(rawDt, 0.05);
 
     _yawVelocity *= math.exp(-3.6 * dt);
     _pitchVelocity *= math.exp(-3.6 * dt);
@@ -170,10 +175,25 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     });
   }
 
-  double? _currentPinchDistance() {
+  ({double distance, Offset center, double angle})? _currentPinchState() {
     if (_pointers.length < 2) return null;
     final positions = _pointers.values.take(2).toList();
-    return (positions[0] - positions[1]).distance;
+    final diff = positions[1] - positions[0];
+    return (
+      distance: diff.distance,
+      center: (positions[0] + positions[1]) * 0.5,
+      angle: math.atan2(diff.dy, diff.dx),
+    );
+  }
+
+  double _wrapAngleDelta(double delta) {
+    while (delta > math.pi) {
+      delta -= 2 * math.pi;
+    }
+    while (delta < -math.pi) {
+      delta += 2 * math.pi;
+    }
+    return delta;
   }
 
   void _onPointerSignal(PointerSignalEvent event) {
@@ -210,7 +230,11 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       _pitchVelocity = 0;
       _spinTicker.stop();
       _spinLast = null;
-      _lastPinchDistance = _currentPinchDistance();
+      _lastMoveTime = DateTime.now();
+      final pinch = _currentPinchState();
+      _lastPinchDistance = pinch?.distance;
+      _lastPinchCenter = pinch?.center;
+      _lastPinchAngle = pinch?.angle;
     }
   }
 
@@ -220,21 +244,55 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     }
 
     if (_pointers.length >= 2) {
-      final dist = _currentPinchDistance();
+      final pinch = _currentPinchState();
+      if (pinch == null) return;
+
+      final now = DateTime.now();
+      final dt = now.difference(_lastMoveTime).inMicroseconds / 1e6;
+
+      var newZoom = _zoom;
       if (_lastPinchDistance != null &&
           _lastPinchDistance! > 1.0 &&
-          dist != null &&
-          dist > 1.0) {
-        final scaleDelta = dist / _lastPinchDistance!;
-        setState(() {
-          _zoom = (_zoom * scaleDelta).clamp(_minZoom, _maxZoom);
-        });
+          pinch.distance > 1.0) {
+        newZoom = (_zoom * (pinch.distance / _lastPinchDistance!))
+            .clamp(_minZoom, _maxZoom);
       }
-      _lastPinchDistance = dist;
+
+      final centerDelta = _lastPinchCenter != null
+          ? pinch.center - _lastPinchCenter!
+          : Offset.zero;
+      final rollDelta = (_lastPinchAngle != null && pinch.distance > 12.0)
+          ? -_wrapAngleDelta(pinch.angle - _lastPinchAngle!)
+          : 0.0;
+
+      setState(() {
+        _zoom = newZoom;
+        if (centerDelta != Offset.zero || rollDelta.abs() > 0.0005) {
+          _spinBy(
+            centerDelta.dx * 0.012,
+            centerDelta.dy * 0.010,
+            rollDelta: rollDelta,
+          );
+        }
+      });
+
+      if (dt > 0.001 && dt < 0.05 && centerDelta != Offset.zero) {
+        final yawInst =
+            (centerDelta.dx * 0.012 / dt).clamp(-4.0, 4.0).toDouble();
+        final pitchInst =
+            (centerDelta.dy * 0.010 / dt).clamp(-3.4, 3.4).toDouble();
+        _yawVelocity = _yawVelocity * 0.45 + yawInst * 0.55;
+        _pitchVelocity = _pitchVelocity * 0.45 + pitchInst * 0.55;
+      }
+
+      _lastPinchDistance = pinch.distance;
+      _lastPinchCenter = pinch.center;
+      _lastPinchAngle = pinch.angle;
+      _lastMoveTime = now;
       return;
     }
 
-    if (event.pointer != _activePointer || _pinched) return;
+    if (event.pointer != _activePointer) return;
 
     final now = DateTime.now();
     final delta = event.localPosition - _lastPos;
@@ -263,10 +321,24 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     _pointers.remove(event.pointer);
     if (_pointers.length < 2) {
       _lastPinchDistance = null;
+      _lastPinchCenter = null;
+      _lastPinchAngle = null;
+    }
+    if (_pointers.length == 1 && _pinched) {
+      // Hand off cleanly to the remaining finger without triggering a false tap.
+      final remaining = _pointers.entries.first;
+      _activePointer = remaining.key;
+      _lastPos = remaining.value;
+      _lastMoveTime = DateTime.now();
+      return;
     }
     if (_pinched) {
       if (_pointers.isEmpty) {
         _pinched = false;
+        if (_yawVelocity.abs() > 0.18 || _pitchVelocity.abs() > 0.18) {
+          _spinLast = null;
+          _spinTicker.start();
+        }
       }
       return;
     }
@@ -286,6 +358,15 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     _pointers.remove(event.pointer);
     if (_pointers.length < 2) {
       _lastPinchDistance = null;
+      _lastPinchCenter = null;
+      _lastPinchAngle = null;
+    }
+    if (_pointers.length == 1 && _pinched) {
+      final remaining = _pointers.entries.first;
+      _activePointer = remaining.key;
+      _lastPos = remaining.value;
+      _lastMoveTime = DateTime.now();
+      return;
     }
     if (_pointers.isEmpty) {
       _pinched = false;
@@ -411,9 +492,12 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   }
 
   /// Screen-axis spin. Keeps going on both axes with no stop.
-  void _spinBy(double yawDelta, double pitchDelta) {
-    final turn = _Quat.axisAngle(const _Vec3(1, 0, 0), pitchDelta)
+  void _spinBy(double yawDelta, double pitchDelta, {double rollDelta = 0.0}) {
+    var turn = _Quat.axisAngle(const _Vec3(1, 0, 0), pitchDelta)
         .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), yawDelta));
+    if (rollDelta != 0.0) {
+      turn = _Quat.axisAngle(const _Vec3(0, 0, 1), rollDelta).multiplied(turn);
+    }
     _orientation = turn.multiplied(_orientation).normalized();
   }
 
@@ -706,7 +790,7 @@ class _ArrowCubePainter extends CustomPainter {
       Paint()
         ..color = const Color(0xFF8B95A3)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = (edge * 0.16).clamp(0.5, 0.5).toDouble()
+        ..strokeWidth = (edge * 0.16).clamp(0.05, 0.05).toDouble()
         ..strokeJoin = StrokeJoin.round,
     );
 
@@ -771,17 +855,29 @@ class _ArrowCubePainter extends CustomPainter {
       points = activeGrid.map((point) => point + perp * gridShake).toList();
     }
 
-    const shaftHalf = 0.15;
-    const headLen = 0.5;
-    const headHalf = 0.30;
+ const shaftHalf = 0.08;
+const headLen = 0.34;
+const headHalf = 0.17;
 
-    final headBase = points.last - dir * math.min(headLen, deltaLen * 0.7);
+    final headBase = points.last - dir * math.min(headLen, deltaLen * 0.75);
     final shaft = List<Offset>.from(points);
     shaft[shaft.length - 1] = headBase;
 
     final fill = Paint()..color = arrowColor;
+    // Sharp flat-cut tail and crisp mitered corner joints keep every arrow a uniform width.
     for (var i = 0; i < shaft.length - 1; i++) {
       _fillGridQuad(canvas, screen, shaft[i], shaft[i + 1], shaftHalf, fill);
+      if (i < shaft.length - 2) {
+        _fillGridSharpCorner(
+          canvas,
+          screen,
+          shaft[i],
+          shaft[i + 1],
+          shaft[i + 2],
+          shaftHalf,
+          fill,
+        );
+      }
     }
 
     final side = Offset(-dir.dy, dir.dx) * headHalf;
@@ -790,6 +886,36 @@ class _ArrowCubePainter extends CustomPainter {
       screen,
       [points.last, headBase + side, headBase - side],
       fill,
+    );
+  }
+
+  void _fillGridSharpCorner(
+    Canvas canvas,
+    _FaceScreen screen,
+    Offset prev,
+    Offset vertex,
+    Offset next,
+    double half,
+    Paint paint,
+  ) {
+    final inDelta = vertex - prev;
+    final outDelta = next - vertex;
+    final inLen = inDelta.distance;
+    final outLen = outDelta.distance;
+    if (inLen < 0.001 || outLen < 0.001) return;
+
+    final inDir = inDelta / inLen;
+    final outDir = outDelta / outLen;
+    _fillGridPolygon(
+      canvas,
+      screen,
+      [
+        vertex - inDir * half - outDir * half,
+        vertex + inDir * half - outDir * half,
+        vertex + inDir * half + outDir * half,
+        vertex - inDir * half + outDir * half,
+      ],
+      paint,
     );
   }
 
