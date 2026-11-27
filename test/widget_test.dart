@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -539,6 +540,12 @@ void main() {
   testWidgets('Completing Stage 5 unlocks Stage 6 and opens Frozen Peaks from levels.json',
       (WidgetTester tester) async {
     await LevelsData.load();
+    final tempDir = Directory.systemTemp.createTempSync('gamia_stage5_test_');
+    addTearDown(() {
+      GameDatabase.instance.resetInMemory();
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    });
+    await GameDatabase.instance.init(storageDir: tempDir, forceReload: true);
     await GameDatabase.instance.recordLevelCompletion(
       levelId: 5,
       stars: 3,
@@ -554,5 +561,65 @@ void main() {
     expect(find.text('Stage 6: Frozen Peaks'), findsOneWidget);
     expect(find.text('110'), findsOneWidget);
     expect(find.text('01:20'), findsOneWidget);
+  });
+
+  test('GameDatabase persists completed stages and unlocks across app restarts',
+      () async {
+    final tempDir = await Directory.systemTemp.createTemp('gamia_progress_test_');
+    try {
+      GameDatabase.instance.resetInMemory();
+      await GameDatabase.instance.init(storageDir: tempDir, forceReload: true);
+      expect(GameDatabase.instance.isLevelUnlocked(1), isTrue);
+      expect(GameDatabase.instance.isLevelUnlocked(2), isFalse);
+
+      await GameDatabase.instance.recordLevelCompletion(
+        levelId: 1,
+        stars: 3,
+        mistakes: 0,
+      );
+
+      // Simulate killing and reopening the app from scratch
+      GameDatabase.instance.resetInMemory();
+      expect(GameDatabase.instance.getRecord(1).isCompleted, isFalse);
+      expect(GameDatabase.instance.isLevelUnlocked(2), isFalse);
+
+      await GameDatabase.instance.init(storageDir: tempDir, forceReload: true);
+      expect(GameDatabase.instance.getRecord(1).isCompleted, isTrue);
+      expect(GameDatabase.instance.getRecord(1).stars, 3);
+      expect(GameDatabase.instance.isLevelUnlocked(2), isTrue);
+    } finally {
+      GameDatabase.instance.resetInMemory();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    }
+  });
+
+  testWidgets('Minimizing app pauses gameplay timer and resumes cleanly on return',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+    expect(find.text('00:30'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('00:27'), findsOneWidget);
+
+    // Minimize / background app: timer must stop and not trigger Stage Failed
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 40));
+    expect(find.text('00:27'), findsOneWidget);
+    expect(find.text('Stage Failed'), findsNothing);
+
+    // Return to app: timer resumes from 00:27
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.text('00:25'), findsOneWidget);
   });
 }

@@ -1,3 +1,4 @@
+import 'dart:ui' show AppLifecycleState;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/foundation.dart';
 
@@ -22,6 +23,7 @@ class AudioService {
   bool _isMusicPlaying = false;
   bool _isMusicOn = false;
   bool _isSoundOn = true;
+  bool _pausedByLifecycle = false;
 
   bool get isMusicPlaying => _isMusicPlaying;
   bool get isMusicOn => _isMusicOn;
@@ -77,9 +79,14 @@ class AudioService {
 
       // Auto-resume safeguard: if OS ever interrupts background music while it should be on, resume it immediately
       _musicPlayer.onPlayerStateChanged.listen((state) {
-        if (_isMusicOn && state != PlayerState.playing && state != PlayerState.completed) {
+        if (_isMusicOn &&
+            !_pausedByLifecycle &&
+            state != PlayerState.playing &&
+            state != PlayerState.completed) {
           Future.microtask(() {
-            if (_isMusicOn && _musicPlayer.state != PlayerState.playing) {
+            if (_isMusicOn &&
+                !_pausedByLifecycle &&
+                _musicPlayer.state != PlayerState.playing) {
               _musicPlayer.resume();
             }
           });
@@ -145,10 +152,49 @@ class AudioService {
     }
   }
 
+  /// Pause all audio when the app is minimized/backgrounded and resume music on return.
+  Future<void> handleAppLifecycleState(AppLifecycleState state) async {
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        if (_pausedByLifecycle) return;
+        _pausedByLifecycle = true;
+        try {
+          for (final player in _swooshPool) {
+            await player.stop();
+          }
+          await _mistakePlayer.stop();
+          await _gameOverPlayer.stop();
+          await _winPlayer.stop();
+          if (_isMusicOn || _isMusicPlaying) {
+            await _musicPlayer.pause();
+            _isMusicPlaying = false;
+          }
+        } catch (e) {
+          debugPrint('AudioService pause note: $e');
+        }
+        break;
+      case AppLifecycleState.resumed:
+        if (!_pausedByLifecycle) return;
+        _pausedByLifecycle = false;
+        if (_isMusicOn) {
+          try {
+            await _musicPlayer.resume();
+            _isMusicPlaying = true;
+          } catch (_) {
+            await playBackgroundMusic();
+          }
+        }
+        break;
+    }
+  }
+
   /// Play swoosh sound effect in parallel without cutting off active swooshes
   /// or interrupting background music.
   Future<void> playSwooshSound() async {
-    if (!_isSoundOn) return;
+    if (!_isSoundOn || _pausedByLifecycle) return;
     try {
       AudioPlayer? selected;
       for (var offset = 0; offset < _swooshPool.length; offset++) {
@@ -179,7 +225,7 @@ class AudioService {
 
   /// Play mistake sound effect without interrupting background music
   Future<void> playMistakeSound() async {
-    if (!_isSoundOn) return;
+    if (!_isSoundOn || _pausedByLifecycle) return;
     try {
       await _mistakePlayer.stop();
       await _mistakePlayer.setVolume(1.0);
@@ -195,7 +241,7 @@ class AudioService {
 
   /// Play game over sound effect without interrupting background music
   Future<void> playGameOverSound() async {
-    if (!_isSoundOn) return;
+    if (!_isSoundOn || _pausedByLifecycle) return;
     try {
       await _gameOverPlayer.stop();
       await _gameOverPlayer.setVolume(1.0);
@@ -211,7 +257,7 @@ class AudioService {
 
   /// Play win sound effect on stage completion without interrupting background music
   Future<void> playWinSound() async {
-    if (!_isSoundOn) return;
+    if (!_isSoundOn || _pausedByLifecycle) return;
     try {
       await _winPlayer.stop();
       await _winPlayer.setVolume(1.0);

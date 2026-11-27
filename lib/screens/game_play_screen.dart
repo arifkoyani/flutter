@@ -24,7 +24,7 @@ class GamePlayScreen extends StatefulWidget {
 }
 
 class _GamePlayScreenState extends State<GamePlayScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const Color primaryOrange = Color(0xFFFF550D);
 
   late PuzzleLevel _level;
@@ -36,6 +36,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   bool _isGameOver = false;
   bool _isVictory = false;
   bool _isTimeUp = false;
+  bool _isAppPaused = false;
 
   Timer? _countdownTimer;
   late final AnimationController _mistakeFlashController;
@@ -44,6 +45,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _mistakeFlashController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -82,9 +84,39 @@ class _GamePlayScreenState extends State<GamePlayScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
     _mistakeFlashController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    AudioService.instance.handleAppLifecycleState(state);
+    switch (state) {
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        if (!_isAppPaused) {
+          setState(() {
+            _isAppPaused = true;
+          });
+          _countdownTimer?.cancel();
+          _countdownTimer = null;
+        }
+        break;
+      case AppLifecycleState.resumed:
+        if (_isAppPaused) {
+          setState(() {
+            _isAppPaused = false;
+          });
+          if (!_isGameOver && !_isVictory && _remainingSeconds > 0) {
+            _startCountdown();
+          }
+        }
+        break;
+    }
   }
 
   @override
@@ -111,8 +143,9 @@ class _GamePlayScreenState extends State<GamePlayScreen>
 
   void _startCountdown() {
     _countdownTimer?.cancel();
+    if (_isAppPaused || _isGameOver || _isVictory) return;
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted || _isGameOver || _isVictory) {
+      if (!mounted || _isGameOver || _isVictory || _isAppPaused) {
         timer.cancel();
         return;
       }
@@ -148,7 +181,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   }
 
   void _onArrowTapped(CanvasArrow arrow, bool isClear) {
-    if (_isGameOver || _isVictory) return;
+    if (_isGameOver || _isVictory || _isAppPaused) return;
 
     if (isClear) {
       AudioService.instance.playSwooshSound();
@@ -570,7 +603,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
               child: CubeTutorialOverlay(
                 totalDurationSeconds: _level.durationSeconds,
                 remainingSeconds: _remainingSeconds,
-                isActive: !_isGameOver && !_isVictory,
+                isActive: !_isGameOver && !_isVictory && !_isAppPaused,
               ),
             ),
           ),
@@ -582,7 +615,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
                   key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
                   totalDurationSeconds: _level.durationSeconds,
                   remainingSeconds: _remainingSeconds,
-                  isActive: !_isGameOver && !_isVictory,
+                  isActive: !_isGameOver && !_isVictory && !_isAppPaused,
                 ),
               ),
             ),

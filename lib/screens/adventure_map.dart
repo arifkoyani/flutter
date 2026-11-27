@@ -73,6 +73,8 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
   void initState() {
     super.initState();
     _transformationController = TransformationController();
+    GameDatabase.instance.addListener(_onProgressChanged);
+    GameDatabase.instance.init();
     if (!LevelsData.isLoaded) {
       LevelsData.load().then((_) {
         if (mounted) setState(() {});
@@ -92,9 +94,14 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
 
   @override
   void dispose() {
+    GameDatabase.instance.removeListener(_onProgressChanged);
     _floatController.dispose();
     _transformationController.dispose();
     super.dispose();
+  }
+
+  void _onProgressChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onLevelTap(AdventureLevel level) {
@@ -358,6 +365,7 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
   // 3D Box with Z-axis depth, multi-layered shadows, and smooth animation
   Widget _build3DLevelCard(AdventureLevel level, bool isSelected) {
     final isUnlocked = level.isUnlocked;
+    final isCompleted = GameDatabase.instance.getRecord(level.id).isCompleted;
 
     return AnimatedBuilder(
         animation: _zLiftAnimation,
@@ -462,16 +470,29 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
                           : const Color(0xFFEDEDED)),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Text(
-                  'STAGE ${level.id}',
-                  style: TextStyle(
-                    color: isSelected
-                        ? Colors.white
-                        : (isUnlocked ? primaryOrange : const Color(0xFF888888)),
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'STAGE ${level.id}',
+                      style: TextStyle(
+                        color: isSelected
+                            ? Colors.white
+                            : (isUnlocked ? primaryOrange : const Color(0xFF888888)),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    if (isCompleted) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.check_circle_rounded,
+                        size: 12,
+                        color: isSelected ? Colors.white : const Color(0xFF2E9E5B),
+                      ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 12),
