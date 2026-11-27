@@ -28,9 +28,43 @@ void main() {
     await tester.pump(const Duration(milliseconds: 2600));
     await tester.pump(const Duration(milliseconds: 500));
 
-    // Verify Adventure Map upward flow markers and 5 levels
+    // Verify Adventure Map upward flow markers, 5 levels, and no Reset View button
+    expect(find.text('RESET VIEW'), findsNothing);
     expect(find.text('THE SUMMIT • STAGE 5'), findsOneWidget);
     expect(find.text('First Steps'), findsOneWidget);
+    expect(find.text('PLAY • STAGE 1'), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_1_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_2_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_3_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_4_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_5_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('flexible_stage_threads')), findsOneWidget);
+
+    // Drag Stage 5 card horizontally & vertically and verify it moves cleanly
+    final card5Finder = find.byKey(const ValueKey('draggable_stage_card_5'));
+    final beforeDrag = tester.getTopLeft(card5Finder);
+    final cardDrag = await tester.startGesture(tester.getCenter(card5Finder));
+    await cardDrag.moveBy(const Offset(24, 18));
+    await tester.pump();
+    await cardDrag.moveBy(const Offset(36, 28));
+    await tester.pump();
+    await cardDrag.up();
+    await tester.pump(const Duration(milliseconds: 200));
+    final afterDrag = tester.getTopLeft(card5Finder);
+    expect(afterDrag.dx, greaterThan(beforeDrag.dx));
+    expect(afterDrag.dy, greaterThan(beforeDrag.dy));
+
+    // Verify Adventure Map supports vertical drag on background via InteractiveViewer, then tap Stage 1
+    final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    final initialMatrix = viewer.transformationController!.value.clone();
+    await tester.dragFrom(const Offset(100, 420), const Offset(0, -360));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.dragFrom(const Offset(100, 420), const Offset(0, -360));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(viewer.transformationController!.value, isNot(equals(initialMatrix)));
+
+    await tester.tap(find.byKey(const ValueKey('draggable_stage_card_1')));
+    await tester.pump(const Duration(milliseconds: 200));
     expect(find.text('PLAY • STAGE 1'), findsOneWidget);
 
     // Tap PLAY • STAGE 1 to open GamePlayScreen for Level 1
@@ -434,6 +468,30 @@ void main() {
     expect(find.text('rotate any angle'), findsNothing);
     expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsOneWidget);
     expect(find.text('zoom in & out'), findsOneWidget);
+
+    // Stage 2 also shows the tutorials
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(key: ValueKey('stage_2'), levelId: 2),
+      ),
+    );
+    expect(find.byKey(const ValueKey('cube_rotate_tutorial')), findsOneWidget);
+    expect(find.text('Shift any side'), findsOneWidget);
+
+    // Stages 3, 4, and 5 must not show any tutorial overlays or hints
+    for (final stageId in [3, 4, 5]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: GamePlayScreen(key: ValueKey('stage_$stageId'), levelId: stageId),
+        ),
+      );
+      expect(find.byKey(const ValueKey('cube_rotate_tutorial')), findsNothing);
+      expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsNothing);
+      expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsNothing);
+      expect(find.text('Shift any side'), findsNothing);
+      expect(find.text('rotate any angle'), findsNothing);
+      expect(find.text('zoom in & out'), findsNothing);
+    }
     expect(find.text('Pinch to Zoom'), findsNothing);
 
     // At 23s (> 75% elapsed): Pinch tutorial & label fade away cleanly

@@ -564,28 +564,30 @@ class _GamePlayScreenState extends State<GamePlayScreen>
           walls: _level.id == 1 ? const [] : _level.walls,
           onArrowTap: _onArrowTapped,
         ),
-        Positioned.fill(
-          child: IgnorePointer(
-            child: CubeTutorialOverlay(
-              totalDurationSeconds: _level.durationSeconds,
-              remainingSeconds: _remainingSeconds,
-              isActive: !_isGameOver && !_isVictory,
-            ),
-          ),
-        ),
-        Positioned.fill(
-          child: IgnorePointer(
-            child: Align(
-              alignment: const Alignment(0.0, 0.80),
-              child: TapToRotateHintBar(
-                key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
+        if (_level.id <= 2) ...[
+          Positioned.fill(
+            child: IgnorePointer(
+              child: CubeTutorialOverlay(
                 totalDurationSeconds: _level.durationSeconds,
                 remainingSeconds: _remainingSeconds,
                 isActive: !_isGameOver && !_isVictory,
               ),
             ),
           ),
-        ),
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Align(
+                alignment: const Alignment(0.0, 0.80),
+                child: TapToRotateHintBar(
+                  key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
+                  totalDurationSeconds: _level.durationSeconds,
+                  remainingSeconds: _remainingSeconds,
+                  isActive: !_isGameOver && !_isVictory,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
