@@ -1,0 +1,90 @@
+{
+  "totalLevels": 5,
+  "levels": [
+    {
+      "id": 1,
+      "levelName": "First Steps",
+      "subtitle": "The Beginning",
+      "gridSize": 6,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 4,
+        "back": 4,
+        "left": 4,
+        "right": 4,
+        "top": 4,
+        "bottom": 4
+      },
+      "totalArrows": 24,
+      "durationSeconds": 30
+    },
+    {
+      "id": 2,
+      "levelName": "Arrow Forest",
+      "subtitle": "Deep Woods",
+      "gridSize": 6,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 6,
+        "back": 6,
+        "left": 6,
+        "right": 6,
+        "top": 5,
+        "bottom": 5
+      },
+      "totalArrows": 34,
+      "durationSeconds": 45
+    },
+    {
+      "id": 3,
+      "levelName": "Mystery Maze",
+      "subtitle": "Twisted Paths",
+      "gridSize": 6,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 9,
+        "back": 8,
+        "left": 8,
+        "right": 8,
+        "top": 7,
+        "bottom": 7
+      },
+      "totalArrows": 47,
+      "durationSeconds": 60
+    },
+    {
+      "id": 4,
+      "levelName": "Desert Escape",
+      "subtitle": "Sun Dunes",
+      "gridSize": 6,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 13,
+        "back": 11,
+        "left": 12,
+        "right": 12,
+        "top": 10,
+        "bottom": 10
+      },
+      "totalArrows": 68,
+      "durationSeconds": 75
+    },
+    {
+      "id": 5,
+      "levelName": "Final Challenge",
+      "subtitle": "Ultimate Quest",
+      "gridSize": 6,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 19,
+        "back": 14,
+        "left": 16,
+        "right": 16,
+        "top": 13,
+        "bottom": 14
+      },
+      "totalArrows": 92,
+      "durationSeconds": 90
+    }
+  ]
+}

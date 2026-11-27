@@ -1,7 +1,121 @@
+import 'dart:convert';
+import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import '../models/puzzle_level.dart';
 
+class LevelSummary {
+  final int id;
+  final String levelName;
+  final String subtitle;
+  final int totalArrows;
+  final int durationSeconds;
+
+  const LevelSummary({
+    required this.id,
+    required this.levelName,
+    required this.subtitle,
+    required this.totalArrows,
+    required this.durationSeconds,
+  });
+}
+
+class _JsonLevelConfig {
+  final int id;
+  final String levelName;
+  final String subtitle;
+  final int gridSize;
+  final int maxMistakes;
+  final Map<CubeFace, int> arrowsPerSide;
+  final int totalArrows;
+  final int durationSeconds;
+
+  const _JsonLevelConfig({
+    required this.id,
+    required this.levelName,
+    required this.subtitle,
+    required this.gridSize,
+    required this.maxMistakes,
+    required this.arrowsPerSide,
+    required this.totalArrows,
+    required this.durationSeconds,
+  });
+
+  factory _JsonLevelConfig.fromJson(Map<String, dynamic> json) {
+    final rawSides = json['arrowsPerSide'] as Map<String, dynamic>? ?? const {};
+    final sides = <CubeFace, int>{
+      for (final face in CubeFace.values)
+        face: (rawSides[face.name] as num?)?.toInt() ?? 0,
+    };
+    final sumSides = sides.values.fold<int>(0, (sum, count) => sum + count);
+    return _JsonLevelConfig(
+      id: (json['id'] as num).toInt(),
+      levelName: json['levelName'] as String? ?? 'Stage ${json['id']}',
+      subtitle: json['subtitle'] as String? ?? '',
+      gridSize: (json['gridSize'] as num?)?.toInt() ?? 6,
+      maxMistakes: (json['maxMistakes'] as num?)?.toInt() ?? 3,
+      arrowsPerSide: sides,
+      totalArrows: (json['totalArrows'] as num?)?.toInt() ?? sumSides,
+      durationSeconds: (json['durationSeconds'] as num?)?.toInt() ?? 60,
+    );
+  }
+}
+
 class LevelsData {
+  static Map<int, _JsonLevelConfig> _jsonConfigs = {};
+  static bool _isLoaded = false;
+
+  static bool get isLoaded => _isLoaded;
+
+  static List<LevelSummary> get levelSummaries {
+    if (_jsonConfigs.isNotEmpty) {
+      final sorted = _jsonConfigs.values.toList()
+        ..sort((a, b) => a.id.compareTo(b.id));
+      return sorted
+          .map(
+            (cfg) => LevelSummary(
+              id: cfg.id,
+              levelName: cfg.levelName,
+              subtitle: cfg.subtitle,
+              totalArrows: cfg.totalArrows,
+              durationSeconds: cfg.durationSeconds,
+            ),
+          )
+          .toList();
+    }
+    return levels
+        .map(
+          (lvl) => LevelSummary(
+            id: lvl.id,
+            levelName: lvl.name,
+            subtitle: lvl.subtitle,
+            totalArrows: getLevel(lvl.id).arrows.length,
+            durationSeconds: lvl.durationSeconds,
+          ),
+        )
+        .toList();
+  }
+
+  /// Loads level definitions from `assets/data/levels.json`.
+  static Future<void> load() async {
+    if (_isLoaded) return;
+    try {
+      final raw = await rootBundle.loadString('assets/data/levels.json');
+      final decoded = jsonDecode(raw) as Map<String, dynamic>;
+      final list = decoded['levels'] as List<dynamic>? ?? const [];
+      final parsed = <int, _JsonLevelConfig>{};
+      for (final item in list) {
+        if (item is Map<String, dynamic>) {
+          final cfg = _JsonLevelConfig.fromJson(item);
+          parsed[cfg.id] = cfg;
+        }
+      }
+      _jsonConfigs = parsed;
+      _isLoaded = true;
+    } catch (e) {
+      debugPrint('LevelsData load fallback: $e');
+    }
+  }
+
   static final List<PuzzleLevel> levels = [
     // Level 1: First Steps (Dense non-overlapping arrows across the cube)
     PuzzleLevel(
@@ -220,19 +334,46 @@ class LevelsData {
       (lvl) => lvl.id == id,
       orElse: () => levels.first,
     );
+    final config = _jsonConfigs[id];
+    final frontPool = config != null ? levels.first.arrows : base.arrows;
+    final sidePool = _sideFaceArrows();
+
+    List<CanvasArrow> buildFaceArrows(CubeFace face, List<CanvasArrow> pool) {
+      final targetCount = config?.arrowsPerSide[face];
+      if (targetCount == null) {
+        return pool.map((a) => a.clone()).toList();
+      }
+      return pool.take(targetCount.clamp(0, pool.length)).map((a) => a.clone()).toList();
+    }
+
+    final arrows = <CanvasArrow>[
+      ...buildFaceArrows(CubeFace.front, frontPool),
+      for (final face in [
+        CubeFace.right,
+        CubeFace.left,
+        CubeFace.back,
+        CubeFace.top,
+        CubeFace.bottom,
+      ])
+        ...buildFaceArrows(
+          face,
+          sidePool.where((a) => a.placedOn == face).toList(),
+        ),
+    ];
+
     return PuzzleLevel(
-      id: base.id,
-      name: base.name,
-      subtitle: base.subtitle,
-      gridCols: base.gridCols,
-      gridRows: base.gridRows,
-      maxMistakes: base.maxMistakes,
+      id: config?.id ?? base.id,
+      name: config?.levelName ?? base.name,
+      subtitle: (config != null && config.subtitle.isNotEmpty)
+          ? config.subtitle
+          : base.subtitle,
+      gridCols: config?.gridSize ?? base.gridCols,
+      gridRows: config?.gridSize ?? base.gridRows,
+      maxMistakes: config?.maxMistakes ?? base.maxMistakes,
+      durationSeconds: config?.durationSeconds ?? base.durationSeconds,
       walls: base.walls,
       exits: base.exits,
-      arrows: [
-        ...base.arrows,
-        ..._sideFaceArrows(),
-      ],
+      arrows: arrows,
     );
   }
 

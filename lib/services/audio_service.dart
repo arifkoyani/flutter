@@ -6,8 +6,14 @@ class AudioService {
   static final AudioService instance = AudioService._internal();
   AudioService._internal();
 
+  static const int _swooshPoolSize = 8;
+
   final AudioPlayer _musicPlayer = AudioPlayer(playerId: 'bg_music');
-  final AudioPlayer _swooshPlayer = AudioPlayer(playerId: 'sfx_swoosh');
+  final List<AudioPlayer> _swooshPool = List.generate(
+    _swooshPoolSize,
+    (index) => AudioPlayer(playerId: 'sfx_swoosh_$index'),
+  );
+  int _swooshCursor = 0;
   final AudioPlayer _mistakePlayer = AudioPlayer(playerId: 'sfx_mistake');
   final AudioPlayer _gameOverPlayer = AudioPlayer(playerId: 'sfx_game_over');
   final AudioPlayer _winPlayer = AudioPlayer(playerId: 'sfx_win');
@@ -50,9 +56,12 @@ class AudioService {
       await _musicPlayer.setVolume(1.0);
 
       // Configure SFX players with low latency & non-interrupting context
-      await _swooshPlayer.setAudioContext(nonInterruptingAudioContext);
-      await _swooshPlayer.setPlayerMode(PlayerMode.lowLatency);
-      await _swooshPlayer.setVolume(1.0);
+      for (final player in _swooshPool) {
+        await player.setAudioContext(nonInterruptingAudioContext);
+        await player.setPlayerMode(PlayerMode.lowLatency);
+        await player.setReleaseMode(ReleaseMode.stop);
+        await player.setVolume(1.0);
+      }
 
       await _mistakePlayer.setAudioContext(nonInterruptingAudioContext);
       await _mistakePlayer.setPlayerMode(PlayerMode.lowLatency);
@@ -87,7 +96,9 @@ class AudioService {
   void setSoundOn(bool enable) {
     _isSoundOn = enable;
     if (!enable) {
-      _swooshPlayer.stop();
+      for (final player in _swooshPool) {
+        player.stop();
+      }
       _mistakePlayer.stop();
       _gameOverPlayer.stop();
       _winPlayer.stop();
@@ -134,13 +145,29 @@ class AudioService {
     }
   }
 
-  /// Play swoosh sound effect when arrow moves without interrupting background music
+  /// Play swoosh sound effect in parallel without cutting off active swooshes
+  /// or interrupting background music.
   Future<void> playSwooshSound() async {
     if (!_isSoundOn) return;
     try {
-      await _swooshPlayer.stop();
-      await _swooshPlayer.setVolume(1.0);
-      await _swooshPlayer.play(
+      AudioPlayer? selected;
+      for (var offset = 0; offset < _swooshPool.length; offset++) {
+        final idx = (_swooshCursor + offset) % _swooshPool.length;
+        final candidate = _swooshPool[idx];
+        if (candidate.state != PlayerState.playing) {
+          selected = candidate;
+          _swooshCursor = (idx + 1) % _swooshPool.length;
+          break;
+        }
+      }
+      if (selected == null) {
+        selected = _swooshPool[_swooshCursor];
+        _swooshCursor = (_swooshCursor + 1) % _swooshPool.length;
+        await selected.stop();
+      }
+
+      await selected.setVolume(1.0);
+      await selected.play(
         AssetSource('audio/swoosh_sound_effects.mp3'),
         mode: PlayerMode.lowLatency,
         ctx: nonInterruptingAudioContext,

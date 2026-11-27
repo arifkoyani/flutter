@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import '../models/puzzle_level.dart';
 import '../data/levels_data.dart';
+import '../widgets/gameplay_background.dart';
 import '../widgets/puzzle_board.dart';
 import '../database/game_database.dart';
 import '../services/audio_service.dart';
@@ -29,9 +31,13 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   late List<CanvasArrow> _arrows;
   int _mistakes = 0;
   int _remainingArrows = 0;
+  int _remainingSeconds = 60;
+  int _levelRunCount = 0;
   bool _isGameOver = false;
   bool _isVictory = false;
+  bool _isTimeUp = false;
 
+  Timer? _countdownTimer;
   late final AnimationController _mistakeFlashController;
   late final Animation<double> _mistakeFlashAnimation;
 
@@ -59,10 +65,24 @@ class _GamePlayScreenState extends State<GamePlayScreen>
       ),
     ]).animate(_mistakeFlashController);
     _loadLevel(widget.levelId);
+    if (!LevelsData.isLoaded) {
+      LevelsData.load().then((_) {
+        if (mounted &&
+            _mistakes == 0 &&
+            _remainingArrows == _arrows.length &&
+            !_isGameOver &&
+            !_isVictory) {
+          setState(() {
+            _loadLevel(widget.levelId);
+          });
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    _countdownTimer?.cancel();
     _mistakeFlashController.dispose();
     super.dispose();
   }
@@ -75,13 +95,50 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   }
 
   void _loadLevel(int id) {
+    _countdownTimer?.cancel();
+    _levelRunCount++;
     _level = LevelsData.getLevel(id);
     _arrows = _level.arrows.map((a) => a.clone()).toList();
     _mistakes = 0;
     _remainingArrows = _arrows.length;
+    _remainingSeconds = _level.durationSeconds;
     _isGameOver = false;
     _isVictory = false;
+    _isTimeUp = false;
     _mistakeFlashController.reset();
+    _startCountdown();
+  }
+
+  void _startCountdown() {
+    _countdownTimer?.cancel();
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted || _isGameOver || _isVictory) {
+        timer.cancel();
+        return;
+      }
+      if (_remainingSeconds <= 1) {
+        timer.cancel();
+        setState(() {
+          _remainingSeconds = 0;
+        });
+        _onTimeUp();
+      } else {
+        setState(() {
+          _remainingSeconds--;
+        });
+      }
+    });
+  }
+
+  void _onTimeUp() {
+    if (_isGameOver || _isVictory) return;
+    _isTimeUp = true;
+    _mistakeFlashController.forward(from: 0.0);
+    if (PreferencesService.instance.isVibrationOn) {
+      HapticFeedback.mediumImpact();
+    }
+    AudioService.instance.playGameOverSound();
+    _handleGameOver();
   }
 
   void _resetCurrentLevel() {
@@ -129,6 +186,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
 
   Future<void> _handleVictory() async {
     _isVictory = true;
+    _countdownTimer?.cancel();
 
     // Play stage complete win sound effect
     AudioService.instance.playWinSound();
@@ -158,6 +216,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
 
   void _handleGameOver() {
     _isGameOver = true;
+    _countdownTimer?.cancel();
 
     showDialog(
       context: context,
@@ -172,10 +231,12 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   Widget build(BuildContext context) {
     return Stack(
       children: [
+        const GameplayBackground(),
         Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.black),
@@ -199,13 +260,20 @@ class _GamePlayScreenState extends State<GamePlayScreen>
               size: 28,
             ),
             tooltip: 'Settings',
-            onPressed: () {
-              Navigator.push(
+            onPressed: () async {
+              _countdownTimer?.cancel();
+              await Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => const SettingScreen(),
                 ),
               );
+              if (mounted &&
+                  !_isGameOver &&
+                  !_isVictory &&
+                  _remainingSeconds > 0) {
+                _startCountdown();
+              }
             },
           ),
           const SizedBox(width: 4),
@@ -215,13 +283,17 @@ class _GamePlayScreenState extends State<GamePlayScreen>
         child: LayoutBuilder(
           builder: (context, constraints) {
             final boardSide = math.min(constraints.maxWidth - 24.0, 460.0);
-            final minNeeded = boardSide + 76.0;
+            final minNeeded = boardSide + 148.0;
             if (constraints.maxHeight >= minNeeded) {
               return Column(
                 children: [
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
                   _buildLivesHud(),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  _buildTimerHud(),
+                  const SizedBox(height: 6),
+                  _buildArrowsLeftHud(),
+                  const SizedBox(height: 6),
                   Expanded(
                     child: ClipRect(
                       clipper: _BelowBannerClipper(),
@@ -246,7 +318,11 @@ class _GamePlayScreenState extends State<GamePlayScreen>
                 children: [
                   const SizedBox(height: 8),
                   _buildLivesHud(),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 6),
+                  _buildTimerHud(),
+                  const SizedBox(height: 6),
+                  _buildArrowsLeftHud(),
+                  const SizedBox(height: 6),
                   ClipRect(
                     clipper: _BelowBannerClipper(),
                     child: Column(
@@ -266,6 +342,22 @@ class _GamePlayScreenState extends State<GamePlayScreen>
           },
         ),
       ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SafeArea(
+            top: false,
+            child: IgnorePointer(
+              child: Padding(
+                padding: const EdgeInsets.only(bottom: 14.0),
+                child: TapToRotateHintBar(
+                  key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
+                ),
+              ),
+            ),
+          ),
         ),
         Positioned.fill(
           child: IgnorePointer(
@@ -350,6 +442,124 @@ class _GamePlayScreenState extends State<GamePlayScreen>
                   ),
                 );
               }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatTime(int totalSeconds) {
+    final minutes = totalSeconds ~/ 60;
+    final seconds = totalSeconds % 60;
+    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+  }
+
+  Widget _buildTimerHud() {
+    final isLowTime = _remainingSeconds <= 10;
+    final accentColor = isLowTime ? const Color(0xFFFF3B30) : primaryOrange;
+    return Center(
+      child: Container(
+        key: const ValueKey('level_countdown_timer'),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: isLowTime
+                ? const Color(0xFFFF3B30).withValues(alpha: 0.35)
+                : const Color(0xFFEEEEEE),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.timer_rounded,
+              size: 18,
+              color: accentColor,
+            ),
+            const SizedBox(width: 6),
+            const Text(
+              'TIME',
+              style: TextStyle(
+                color: Color(0xFF8E8E93),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _formatTime(_remainingSeconds),
+              style: TextStyle(
+                color: isLowTime ? const Color(0xFFFF3B30) : Colors.black,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildArrowsLeftHud() {
+    return Center(
+      child: Container(
+        key: const ValueKey('remaining_arrows_counter'),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+          border: Border.all(
+            color: const Color(0xFFEEEEEE),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.near_me_rounded,
+              size: 17,
+              color: primaryOrange,
+            ),
+            const SizedBox(width: 6),
+            const Text(
+              'ARROWS',
+              style: TextStyle(
+                color: Color(0xFF8E8E93),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.0,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$_remainingArrows',
+              style: const TextStyle(
+                color: Colors.black,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
             ),
           ],
         ),
@@ -511,10 +721,12 @@ class _GamePlayScreenState extends State<GamePlayScreen>
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
-                'You made 3 mistakes.\nCheck the path of the arrows carefully!',
+              Text(
+                _isTimeUp
+                    ? "Time's up!\nTry clearing the arrows before time runs out!"
+                    : 'You made ${_level.maxMistakes} mistakes.\nCheck the path of the arrows carefully!',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                   color: Color(0xFF666666),
                   fontSize: 13.5,
                 ),

@@ -1,6 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 import 'game_play_screen.dart';
+import '../data/levels_data.dart';
 import '../database/game_database.dart';
+import '../widgets/adventure_background.dart';
 
 class AdventureLevel {
   final int id;
@@ -34,44 +36,27 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
     with SingleTickerProviderStateMixin {
   static const Color primaryOrange = Color(0xFFFF550D);
 
+  static const List<IconData> _stageIcons = [
+    Icons.explore_rounded,
+    Icons.park_rounded,
+    Icons.grid_4x4_rounded,
+    Icons.wb_sunny_rounded,
+    Icons.emoji_events_rounded,
+  ];
+
   List<AdventureLevel> get _levels {
-    return [
-      AdventureLevel(
-        id: 1,
-        name: 'First Steps',
-        subtitle: 'The Beginning',
-        icon: Icons.explore_rounded,
-        isUnlocked: GameDatabase.instance.isLevelUnlocked(1),
-      ),
-      AdventureLevel(
-        id: 2,
-        name: 'Arrow Forest',
-        subtitle: 'Deep Woods',
-        icon: Icons.park_rounded,
-        isUnlocked: GameDatabase.instance.isLevelUnlocked(2),
-      ),
-      AdventureLevel(
-        id: 3,
-        name: 'Mystery Maze',
-        subtitle: 'Twisted Paths',
-        icon: Icons.grid_4x4_rounded,
-        isUnlocked: GameDatabase.instance.isLevelUnlocked(3),
-      ),
-      AdventureLevel(
-        id: 4,
-        name: 'Desert Escape',
-        subtitle: 'Sun Dunes',
-        icon: Icons.wb_sunny_rounded,
-        isUnlocked: GameDatabase.instance.isLevelUnlocked(4),
-      ),
-      AdventureLevel(
-        id: 5,
-        name: 'Final Challenge',
-        subtitle: 'Ultimate Quest',
-        icon: Icons.emoji_events_rounded,
-        isUnlocked: GameDatabase.instance.isLevelUnlocked(5),
-      ),
-    ];
+    final summaries = LevelsData.levelSummaries;
+    return List.generate(summaries.length, (index) {
+      final summary = summaries[index];
+      final icon = _stageIcons[index % _stageIcons.length];
+      return AdventureLevel(
+        id: summary.id,
+        name: summary.levelName,
+        subtitle: summary.subtitle,
+        icon: icon,
+        isUnlocked: GameDatabase.instance.isLevelUnlocked(summary.id),
+      );
+    });
   }
 
   int _selectedLevelId = 1;
@@ -84,6 +69,11 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
   void initState() {
     super.initState();
     _transformationController = TransformationController();
+    if (!LevelsData.isLoaded) {
+      LevelsData.load().then((_) {
+        if (mounted) setState(() {});
+      });
+    }
 
     // Subtle Z-axis breathing & lift animation (2000ms loop)
     _floatController = AnimationController(
@@ -121,9 +111,12 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
+      backgroundColor: const Color(0xFFFFFEFC),
+      body: Stack(
+        children: [
+          const AdventureDashboardBackground(),
+          SafeArea(
+            child: Column(
           children: [
             // Minimal Top Bar with generous white space & Settings/Zoom Reset
             Padding(
@@ -225,18 +218,18 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
                               ),
                             ],
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
+                              const Icon(
                                 Icons.flag_rounded,
                                 size: 16,
                                 color: primaryOrange,
                               ),
-                              SizedBox(width: 8),
+                              const SizedBox(width: 8),
                               Text(
-                                'THE SUMMIT • STAGE 5',
-                                style: TextStyle(
+                                'THE SUMMIT • STAGE ${_levels.last.id}',
+                                style: const TextStyle(
                                   color: primaryOrange,
                                   fontSize: 11.5,
                                   fontWeight: FontWeight.w900,
@@ -274,7 +267,7 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
                               ),
                               const SizedBox(width: 6),
                               Text(
-                                'STARTING BASE • STAGE 1',
+                                'STARTING BASE • STAGE ${_levels.first.id}',
                                 style: TextStyle(
                                   color: Colors.black.withValues(alpha: 0.55),
                                   fontSize: 11,
@@ -305,6 +298,8 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
             ),
           ],
         ),
+      ),
+        ],
       ),
     );
   }

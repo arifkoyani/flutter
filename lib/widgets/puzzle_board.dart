@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:material_ui/material_ui.dart';
@@ -28,22 +29,39 @@ class PuzzleBoard extends StatefulWidget {
   State<PuzzleBoard> createState() => _PuzzleBoardState();
 }
 
+class _ExitingArrow {
+  final CanvasArrow arrow;
+  final double totalDistance;
+  double progress = 0.0;
+
+  _ExitingArrow({
+    required this.arrow,
+    required this.totalDistance,
+  });
+}
+
 class _PuzzleBoardState extends State<PuzzleBoard>
     with TickerProviderStateMixin {
   static const double _restYaw = -0.72;
   static const double _restPitch = 0.50;
   static const double _minZoom = 0.65;
   static const double _maxZoom = 2.0;
+  // 20% faster than the original 700ms exit duration (700 / 1.2 ≈ 583ms).
+  static const double _exitDurationSeconds = 0.700 / 1.20;
 
   int? _shakingArrowId;
-  int? _exitingArrowId;
+  int? _pressedArrowId;
+  CanvasArrow? _pendingOutcomeArrow;
 
   late final AnimationController _shakeController;
   late final Animation<double> _shakeAnimation;
 
-  late final AnimationController _exitController;
-  late Animation<double> _exitAnimation;
-  CanvasArrow? _animatingArrow;
+  late final AnimationController _pressController;
+  late final Animation<double> _pressAnimation;
+
+  final Map<int, _ExitingArrow> _exitingArrows = {};
+  late final Ticker _exitTicker;
+  Duration? _exitLast;
 
   late _Quat _orientation = _Quat.axisAngle(const _Vec3(1, 0, 0), _restPitch)
       .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), _restYaw));
@@ -84,33 +102,71 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       curve: Curves.easeInOut,
     ));
 
-    _exitController = AnimationController(
+    _pressController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 700),
+      duration: const Duration(milliseconds: 95),
+      reverseDuration: const Duration(milliseconds: 95),
     );
 
-    _exitAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(_exitController);
+    _pressAnimation = Tween<double>(begin: 1.0, end: 1.02).animate(
+      CurvedAnimation(
+        parent: _pressController,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInOutCubic,
+      ),
+    );
 
-    _exitController.addListener(() {
-      if (_animatingArrow != null) {
-        setState(() {
-          _animatingArrow!.exitDistance = _exitAnimation.value;
-        });
+    _pressController.addStatusListener((status) {
+      if (status == AnimationStatus.dismissed) {
+        final pending = _pendingOutcomeArrow;
+        _pendingOutcomeArrow = null;
+        if (mounted) {
+          setState(() {
+            _pressedArrowId = null;
+          });
+        } else {
+          _pressedArrowId = null;
+        }
+        if (pending != null && mounted) {
+          _triggerArrowOutcome(pending);
+        }
       }
     });
 
-    _exitController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && _animatingArrow != null) {
-        setState(() {
-          _animatingArrow!.isExited = true;
-          _animatingArrow!.exitDistance = 0.0;
-          _animatingArrow = null;
-          _exitingArrowId = null;
-        });
-      }
-    });
-
+    _exitTicker = createTicker(_onExitTick);
     _spinTicker = createTicker(_onSpinTick);
+  }
+
+  void _onExitTick(Duration elapsed) {
+    final previous = _exitLast;
+    _exitLast = elapsed;
+    if (previous == null || _exitingArrows.isEmpty) return;
+
+    final dt = (elapsed - previous).inMicroseconds / 1e6;
+    if (dt <= 0) return;
+
+    final completedIds = <int>[];
+    setState(() {
+      for (final entry in _exitingArrows.entries) {
+        final item = entry.value;
+        item.progress = (item.progress + dt / _exitDurationSeconds).clamp(0.0, 1.0);
+        if (item.progress >= 1.0) {
+          item.arrow.isExited = true;
+          item.arrow.exitDistance = 0.0;
+          completedIds.add(entry.key);
+        } else {
+          final eased = Curves.easeInOutQuad.transform(item.progress);
+          item.arrow.exitDistance = eased * item.totalDistance;
+        }
+      }
+      for (final id in completedIds) {
+        _exitingArrows.remove(id);
+      }
+      if (_exitingArrows.isEmpty) {
+        _exitTicker.stop();
+        _exitLast = null;
+      }
+    });
   }
 
   @override
@@ -120,10 +176,13 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     final arrowsReplaced = !identical(oldWidget.arrows, widget.arrows);
     if (!levelChanged && !arrowsReplaced) return;
 
-    _animatingArrow = null;
-    _exitingArrowId = null;
+    _exitingArrows.clear();
+    _exitTicker.stop();
+    _exitLast = null;
+    _pendingOutcomeArrow = null;
+    _pressedArrowId = null;
+    _pressController.reset();
     _shakingArrowId = null;
-    _exitController.stop();
     _shakeController.stop();
 
     if (levelChanged) {
@@ -145,8 +204,9 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   @override
   void dispose() {
     _spinTicker.dispose();
+    _exitTicker.dispose();
+    _pressController.dispose();
     _shakeController.dispose();
-    _exitController.dispose();
     super.dispose();
   }
 
@@ -209,9 +269,33 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     }
   }
 
-  void _onPointerDown(PointerDownEvent event) {
+  void _flushPendingPressOutcome() {
+    final pending = _pendingOutcomeArrow;
+    _pendingOutcomeArrow = null;
+    _pressedArrowId = null;
+    _pressController.reset();
+    if (pending != null) {
+      _triggerArrowOutcome(pending);
+    }
+  }
+
+  void _cancelPressVisual() {
+    _pendingOutcomeArrow = null;
+    if (_pressController.value > 0.0) {
+      _pressController.reverse();
+    } else if (_pressedArrowId != null) {
+      setState(() {
+        _pressedArrowId = null;
+      });
+    }
+  }
+
+  void _onPointerDown(PointerDownEvent event, Size size) {
     _pointers[event.pointer] = event.localPosition;
     if (_pointers.length == 1) {
+      if (_pendingOutcomeArrow != null) {
+        _flushPendingPressOutcome();
+      }
       _activePointer = event.pointer;
       _downPos = event.localPosition;
       _lastPos = event.localPosition;
@@ -222,7 +306,16 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       _pitchVelocity = 0;
       _spinTicker.stop();
       _spinLast = null;
+
+      final hit = _pickArrow(event.localPosition, size);
+      if (hit != null) {
+        setState(() {
+          _pressedArrowId = hit.id;
+        });
+        _pressController.forward(from: 0.0);
+      }
     } else {
+      _cancelPressVisual();
       _activePointer = null;
       _dragged = true;
       _pinched = true;
@@ -244,6 +337,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     }
 
     if (_pointers.length >= 2) {
+      _cancelPressVisual();
       final pinch = _currentPinchState();
       if (pinch == null) return;
 
@@ -298,6 +392,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     final delta = event.localPosition - _lastPos;
     if (!_dragged && (event.localPosition - _downPos).distance > 8) {
       _dragged = true;
+      _cancelPressVisual();
     }
 
     if (_dragged) {
@@ -355,6 +450,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   }
 
   void _onPointerCancel(PointerCancelEvent event) {
+    _cancelPressVisual();
     _pointers.remove(event.pointer);
     if (_pointers.length < 2) {
       _lastPinchDistance = null;
@@ -386,7 +482,10 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       final probe = Offset(tip.dx + dir.dx * step, tip.dy + dir.dy * step);
 
       for (final other in widget.arrows) {
-        if (other.id == arrow.id || other.isExited || other.placedOn != arrow.placedOn) {
+        if (other.id == arrow.id ||
+            other.isExited ||
+            _exitingArrows.containsKey(other.id) ||
+            other.placedOn != arrow.placedOn) {
           continue;
         }
 
@@ -403,27 +502,38 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   }
 
   void _handleTap(Offset local, Size size) {
-    if (_exitingArrowId != null) return;
-
     final tapped = _pickArrow(local, size);
-    if (tapped == null) return;
+    if (tapped == null) {
+      _cancelPressVisual();
+      return;
+    }
 
+    final isClear = _isPathClear(tapped);
+    if (!isClear && _pressedArrowId == tapped.id && _pressController.value > 0.0) {
+      // Blocked arrow returns smoothly from 1.05x to 1.0x first, then triggers mistake feedback.
+      _pendingOutcomeArrow = tapped;
+      _pressController.reverse();
+      return;
+    }
+
+    _pendingOutcomeArrow = null;
+    _pressedArrowId = null;
+    _pressController.reset();
+    _triggerArrowOutcome(tapped);
+  }
+
+  void _triggerArrowOutcome(CanvasArrow tapped) {
     final isClear = _isPathClear(tapped);
 
     if (isClear) {
-      _animatingArrow = tapped;
-      _exitingArrowId = tapped.id;
-
-      final totalTravelDistance = tapped.totalLength + 25.0;
-      _exitAnimation = Tween<double>(
-        begin: 0.0,
-        end: totalTravelDistance,
-      ).animate(CurvedAnimation(
-        parent: _exitController,
-        curve: Curves.easeInOutQuad,
-      ));
-
-      _exitController.forward(from: 0.0);
+      _exitingArrows[tapped.id] = _ExitingArrow(
+        arrow: tapped,
+        totalDistance: tapped.totalLength + 25.0,
+      );
+      if (!_exitTicker.isActive) {
+        _exitLast = null;
+        _exitTicker.start();
+      }
       widget.onArrowTap(tapped, true);
     } else {
       setState(() {
@@ -461,7 +571,11 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       final depthBias = (1.15 - normal.z) * 18;
 
       for (final arrow in widget.arrows) {
-        if (arrow.isExited || arrow.placedOn != face) continue;
+        if (arrow.isExited ||
+            _exitingArrows.containsKey(arrow.id) ||
+            arrow.placedOn != face) {
+          continue;
+        }
         for (var i = 0; i < arrow.points.length - 1; i++) {
           final dist = _distanceToSegment(
             tap,
@@ -522,13 +636,13 @@ class _PuzzleBoardState extends State<PuzzleBoard>
               onHorizontalDragUpdate: (_) {},
               child: Listener(
                 behavior: HitTestBehavior.opaque,
-                onPointerDown: _onPointerDown,
+                onPointerDown: (event) => _onPointerDown(event, canvas),
                 onPointerMove: _onPointerMove,
                 onPointerUp: (event) => _onPointerUp(event, canvas),
                 onPointerCancel: _onPointerCancel,
                 onPointerSignal: _onPointerSignal,
                 child: AnimatedBuilder(
-                  animation: Listenable.merge([_shakeAnimation, _exitController]),
+                  animation: Listenable.merge([_shakeAnimation, _pressAnimation]),
                   builder: (context, child) {
                     return CustomPaint(
                       size: canvas,
@@ -543,6 +657,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
                         zoom: _zoom,
                         shakingArrowId: _shakingArrowId,
                         shakeOffset: _shakeAnimation.value,
+                        pressedArrowId: _pressedArrowId,
+                        pressScale: _pressAnimation.value,
                       ),
                     );
                   },
@@ -703,6 +819,8 @@ class _ArrowCubePainter extends CustomPainter {
   final double zoom;
   final int? shakingArrowId;
   final double shakeOffset;
+  final int? pressedArrowId;
+  final double pressScale;
 
   static const Color primaryOrange = Color(0xFFFF550D);
   static const _Vec3 _light = _Vec3(0.28, 0.86, 0.42);
@@ -716,10 +834,14 @@ class _ArrowCubePainter extends CustomPainter {
     required this.zoom,
     required this.shakingArrowId,
     required this.shakeOffset,
+    required this.pressedArrowId,
+    required this.pressScale,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    _paintFloatingShadow(canvas, size);
+
     final faces = <CubeFace>[];
     for (final face in CubeFace.values) {
       final normal = orientation.rotate(_FaceFrame.of(face).normal);
@@ -734,6 +856,59 @@ class _ArrowCubePainter extends CustomPainter {
     for (final face in faces) {
       _paintFace(canvas, size, face);
     }
+  }
+
+  /// Diffused elliptical floor shadow beneath the floating 3D cube that responds
+  /// dynamically to the cube's live orientation and zoom.
+  void _paintFloatingShadow(Canvas canvas, Size size) {
+    double minX = double.infinity;
+    double maxX = double.negativeInfinity;
+    double maxY = double.negativeInfinity;
+
+    for (final sx in const [-1.0, 1.0]) {
+      for (final sy in const [-1.0, 1.0]) {
+        for (final sz in const [-1.0, 1.0]) {
+          final projected = _CubeMath.project(
+            orientation.rotate(_Vec3(sx, sy, sz)),
+            size,
+            zoom: zoom,
+          );
+          if (projected.dx < minX) minX = projected.dx;
+          if (projected.dx > maxX) maxX = projected.dx;
+          if (projected.dy > maxY) maxY = projected.dy;
+        }
+      }
+    }
+
+    final spanX = math.max(40.0, maxX - minX);
+    final shadowCenter = Offset(
+      (minX + maxX) * 0.5 - spanX * 0.025,
+      maxY + size.shortestSide * 0.042 * zoom,
+    );
+
+    final outerRect = Rect.fromCenter(
+      center: shadowCenter,
+      width: spanX * 1.06,
+      height: spanX * 0.25,
+    );
+    canvas.drawOval(
+      outerRect,
+      Paint()
+        ..color = const Color(0xFFE88652).withValues(alpha: 0.18)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 18.0 * zoom),
+    );
+
+    final coreRect = Rect.fromCenter(
+      center: shadowCenter,
+      width: spanX * 0.72,
+      height: spanX * 0.15,
+    );
+    canvas.drawOval(
+      coreRect,
+      Paint()
+        ..color = const Color(0xFFB35E34).withValues(alpha: 0.12)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 9.0 * zoom),
+    );
   }
 
   _Vec3 _faceCenter(CubeFace face) {
@@ -758,8 +933,9 @@ class _ArrowCubePainter extends CustomPainter {
       frame.origin + frame.axisU + frame.axisV,
       frame.origin + frame.axisV,
     ];
-    final projected = corners
-        .map((corner) => _CubeMath.project(orientation.rotate(corner), size, zoom: zoom))
+    final rotatedCorners = corners.map(orientation.rotate).toList();
+    final projected = rotatedCorners
+        .map((corner) => _CubeMath.project(corner, size, zoom: zoom))
         .toList();
 
     final path = Path()..moveTo(projected.first.dx, projected.first.dy);
@@ -768,9 +944,45 @@ class _ArrowCubePainter extends CustomPainter {
     }
     path.close();
 
-    final fill = Color.lerp(const Color(0xFFD7DDE6), _baseColor(face), shade)!
-        .withValues(alpha: 0.95);
-    canvas.drawPath(path, Paint()..color = fill);
+    // Pick the brightest and darkest corners relative to the 3D light vector
+    // so the gradient shifts naturally as the cube spins while keeping 0.95 alpha.
+    var litIndex = 0;
+    var shadowIndex = 0;
+    var maxDot = rotatedCorners.first.dot(light);
+    var minDot = maxDot;
+    for (var i = 1; i < rotatedCorners.length; i++) {
+      final d = rotatedCorners[i].dot(light);
+      if (d > maxDot) {
+        maxDot = d;
+        litIndex = i;
+      }
+      if (d < minDot) {
+        minDot = d;
+        shadowIndex = i;
+      }
+    }
+
+    final faceBase = Color.lerp(const Color(0xFFD2D9E3), _baseColor(face), shade)!;
+    final highlightColor =
+        Color.lerp(faceBase, Colors.white, 0.45)!.withValues(alpha: 0.95);
+    final midColor = faceBase.withValues(alpha: 0.95);
+    final shadowColor =
+        Color.lerp(const Color(0xFFBDC7D6), faceBase, 0.68)!.withValues(alpha: 0.95);
+
+    final litCorner = projected[litIndex];
+    final shadowCorner = projected[shadowIndex];
+    final fillPaint = Paint();
+    if ((litCorner - shadowCorner).distance >= 1.0) {
+      fillPaint.shader = ui.Gradient.linear(
+        litCorner,
+        shadowCorner,
+        [highlightColor, midColor, shadowColor],
+        const [0.0, 0.55, 1.0],
+      );
+    } else {
+      fillPaint.color = midColor;
+    }
+    canvas.drawPath(path, fillPaint);
 
     final screen = _buildFaceScreen(
       frame: frame,
@@ -809,9 +1021,17 @@ class _ArrowCubePainter extends CustomPainter {
       }
     }
 
+    CanvasArrow? pressedOnFace;
     for (final arrow in arrows) {
       if (arrow.placedOn != face || arrow.isExited) continue;
+      if (arrow.id == pressedArrowId) {
+        pressedOnFace = arrow;
+        continue;
+      }
       _paintArrow(canvas, screen, arrow);
+    }
+    if (pressedOnFace != null) {
+      _paintArrow(canvas, screen, pressedOnFace);
     }
   }
 
@@ -834,6 +1054,8 @@ class _ArrowCubePainter extends CustomPainter {
 
   void _paintArrow(Canvas canvas, _FaceScreen screen, CanvasArrow arrow) {
     final isShaking = arrow.id == shakingArrowId;
+    final isPressed = arrow.id == pressedArrowId && arrow.exitDistance == 0.0;
+    final scaleFactor = isPressed ? pressScale : 1.0;
     final arrowColor = isShaking ? const Color(0xFFFF3B30) : primaryOrange;
 
     final activeGrid = arrow.exitDistance > 0
@@ -855,11 +1077,27 @@ class _ArrowCubePainter extends CustomPainter {
       points = activeGrid.map((point) => point + perp * gridShake).toList();
     }
 
- const shaftHalf = 0.08;
-const headLen = 0.34;
-const headHalf = 0.17;
+    if (scaleFactor != 1.0) {
+      var minX = points.first.dx;
+      var maxX = points.first.dx;
+      var minY = points.first.dy;
+      var maxY = points.first.dy;
+      for (final pt in points) {
+        if (pt.dx < minX) minX = pt.dx;
+        if (pt.dx > maxX) maxX = pt.dx;
+        if (pt.dy < minY) minY = pt.dy;
+        if (pt.dy > maxY) maxY = pt.dy;
+      }
+      final pivot = Offset((minX + maxX) * 0.5, (minY + maxY) * 0.5);
+      points = points.map((pt) => pivot + (pt - pivot) * scaleFactor).toList();
+    }
 
-    final headBase = points.last - dir * math.min(headLen, deltaLen * 0.75);
+    final shaftHalf = 0.08 * scaleFactor;
+    final headLen = 0.34 * scaleFactor;
+    final headHalf = 0.17 * scaleFactor;
+
+    final headBase =
+        points.last - dir * math.min(headLen, deltaLen * scaleFactor * 0.75);
     final shaft = List<Offset>.from(points);
     shaft[shaft.length - 1] = headBase;
 

@@ -40,6 +40,8 @@ void main() {
     // Verify Level 1 GamePlayScreen loaded
     expect(find.byType(GamePlayScreen), findsOneWidget);
     expect(find.text('Stage 1: First Steps'), findsOneWidget);
+    expect(find.byKey(const ValueKey('gameplay_background')), findsOneWidget);
+    expect(find.text('Tap to Rotate'), findsOneWidget);
     expect(find.text('LIVES'), findsOneWidget);
     expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
     expect(find.textContaining('ARROWS LEFT'), findsNothing);
@@ -170,7 +172,11 @@ void main() {
     expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
   });
 
-  test('Stage 1 cube arrows do not overlap and every face is solvable', () {
+  test('All 5 JSON levels do not overlap and every face is solvable', () async {
+    await LevelsData.load();
+    expect(LevelsData.isLoaded, isTrue);
+    expect(LevelsData.levelSummaries.length, 5);
+
     double distToSeg(Offset p, Offset a, Offset b) {
       final ab = b - a;
       final lenSq = ab.dx * ab.dx + ab.dy * ab.dy;
@@ -193,65 +199,219 @@ void main() {
       return best;
     }
 
-    final level1 = LevelsData.getLevel(1);
-    expect(level1.arrows.length, greaterThanOrEqualTo(80));
+    final expectedCounts = {1: 24, 2: 34, 3: 47, 4: 68, 5: 92};
+    final expectedDurations = {1: 30, 2: 45, 3: 60, 4: 75, 5: 90};
 
-    for (final face in CubeFace.values) {
-      final faceArrows = level1.arrows
-          .where((a) => a.placedOn == face)
-          .map((a) => a.clone())
-          .toList();
-      expect(faceArrows.length, greaterThanOrEqualTo(13),
-          reason: '$face should be densely packed');
+    for (final stageId in [1, 2, 3, 4, 5]) {
+      final level = LevelsData.getLevel(stageId);
+      expect(level.arrows.length, expectedCounts[stageId]);
+      expect(level.durationSeconds, expectedDurations[stageId]);
 
-      // Verify bounds and zero overlap across all arrows on this face
-      for (int i = 0; i < faceArrows.length; i++) {
-        final a = faceArrows[i];
-        for (final pt in a.points) {
-          expect(pt.dx, inInclusiveRange(0.3, 5.7));
-          expect(pt.dy, inInclusiveRange(0.3, 5.7));
-        }
-        for (int j = i + 1; j < faceArrows.length; j++) {
-          final b = faceArrows[j];
-          for (int sa = 0; sa < a.points.length - 1; sa++) {
-            for (int sb = 0; sb < b.points.length - 1; sb++) {
-              final d = segToSegDist(
-                a.points[sa],
-                a.points[sa + 1],
-                b.points[sb],
-                b.points[sb + 1],
-              );
-              expect(d, greaterThanOrEqualTo(0.50),
-                  reason: 'Arrows ${a.id} and ${b.id} on $face too close ($d)');
-            }
+      for (final face in CubeFace.values) {
+        final faceArrows = level.arrows
+            .where((a) => a.placedOn == face)
+            .map((a) => a.clone())
+            .toList();
+        expect(faceArrows, isNotEmpty, reason: 'Stage $stageId $face should have arrows');
+
+        // Verify bounds and zero overlap across all arrows on this face
+        for (int i = 0; i < faceArrows.length; i++) {
+          final a = faceArrows[i];
+          for (final pt in a.points) {
+            expect(pt.dx, inInclusiveRange(0.3, 5.7));
+            expect(pt.dy, inInclusiveRange(0.3, 5.7));
           }
-        }
-      }
-
-      // Verify 100% solvability using PuzzleBoard's exact _isPathClear logic
-      final remaining = List<CanvasArrow>.from(faceArrows);
-      while (remaining.isNotEmpty) {
-        final clearArrow = remaining.where((arrow) {
-          final tip = arrow.tip;
-          final dir = arrow.exitDirection.unitVector;
-          for (double step = 0.4; step <= 8.0; step += 0.3) {
-            final probe = Offset(tip.dx + dir.dx * step, tip.dy + dir.dy * step);
-            for (final other in remaining) {
-              if (other.id == arrow.id) continue;
-              for (int i = 0; i < other.points.length - 1; i++) {
-                if (distToSeg(probe, other.points[i], other.points[i + 1]) <
-                    0.45) {
-                  return false;
-                }
+          for (int j = i + 1; j < faceArrows.length; j++) {
+            final b = faceArrows[j];
+            for (int sa = 0; sa < a.points.length - 1; sa++) {
+              for (int sb = 0; sb < b.points.length - 1; sb++) {
+                final d = segToSegDist(
+                  a.points[sa],
+                  a.points[sa + 1],
+                  b.points[sb],
+                  b.points[sb + 1],
+                );
+                expect(d, greaterThanOrEqualTo(0.50),
+                    reason:
+                        'Stage $stageId Arrows ${a.id} and ${b.id} on $face too close ($d)');
               }
             }
           }
-          return true;
-        }).toList();
-        expect(clearArrow, isNotEmpty,
-            reason: 'Deadlock on $face with ${remaining.map((e) => e.id).toList()}');
-        remaining.remove(clearArrow.first);
+        }
+
+        // Verify 100% solvability using PuzzleBoard's exact _isPathClear logic
+        final remaining = List<CanvasArrow>.from(faceArrows);
+        while (remaining.isNotEmpty) {
+          final clearArrow = remaining.where((arrow) {
+            final tip = arrow.tip;
+            final dir = arrow.exitDirection.unitVector;
+            for (double step = 0.4; step <= 8.0; step += 0.3) {
+              final probe = Offset(tip.dx + dir.dx * step, tip.dy + dir.dy * step);
+              for (final other in remaining) {
+                if (other.id == arrow.id) continue;
+                for (int i = 0; i < other.points.length - 1; i++) {
+                  if (distToSeg(probe, other.points[i], other.points[i + 1]) <
+                      0.45) {
+                    return false;
+                  }
+                }
+              }
+            }
+            return true;
+          }).toList();
+          expect(clearArrow, isNotEmpty,
+              reason:
+                  'Deadlock on Stage $stageId $face with ${remaining.map((e) => e.id).toList()}');
+          remaining.remove(clearArrow.first);
+        }
       }
     }
+  });
+
+  testWidgets('Level 1 syncs from levels.json, renders timer & remaining arrows below Lives',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+    expect(LevelsData.isLoaded, isTrue);
+
+    final jsonLevel1 = LevelsData.getLevel(1);
+    expect(jsonLevel1.name, 'First Steps');
+    expect(jsonLevel1.durationSeconds, 30);
+    expect(jsonLevel1.arrows.length, 24);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+
+    expect(find.text('Stage 1: First Steps'), findsOneWidget);
+    expect(find.byKey(const ValueKey('gameplay_background')), findsOneWidget);
+    expect(find.text('Tap to Rotate'), findsOneWidget);
+    expect(find.text('LIVES'), findsOneWidget);
+    expect(find.byKey(const ValueKey('level_countdown_timer')), findsOneWidget);
+    expect(find.text('TIME'), findsOneWidget);
+    expect(find.text('00:30'), findsOneWidget);
+    expect(find.byKey(const ValueKey('remaining_arrows_counter')), findsOneWidget);
+    expect(find.text('ARROWS'), findsOneWidget);
+    expect(find.text('24'), findsOneWidget);
+
+    // Timer sits strictly below LIVES, and remaining arrows sits strictly below TIME
+    final livesBottom = tester.getBottomLeft(find.text('LIVES')).dy;
+    final timerTop = tester.getTopLeft(find.byKey(const ValueKey('level_countdown_timer'))).dy;
+    final timerBottom = tester.getBottomLeft(find.byKey(const ValueKey('level_countdown_timer'))).dy;
+    final arrowsTop = tester.getTopLeft(find.byKey(const ValueKey('remaining_arrows_counter'))).dy;
+    expect(timerTop, greaterThan(livesBottom));
+    expect(arrowsTop, greaterThan(timerBottom));
+
+    // Tapping a clear arrow decrements remaining arrows from 24 to 23
+    final board = tester.widget<PuzzleBoard>(find.byType(PuzzleBoard));
+    board.onArrowTap(board.arrows.first, true);
+    await tester.pump();
+    expect(find.text('23'), findsOneWidget);
+
+    // Advance 1 second and verify countdown updates
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('00:29'), findsOneWidget);
+
+    // Advance remaining 29 seconds to trigger time-up Stage Failed dialog
+    await tester.pump(const Duration(seconds: 29));
+    await tester.pumpAndSettle();
+    expect(find.text('Stage Failed'), findsOneWidget);
+  });
+
+  testWidgets('Multiple clear arrows exit simultaneously in parallel',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+
+    final boardFinder = find.byType(PuzzleBoard);
+    final board = tester.widget<PuzzleBoard>(boardFinder);
+    final center = tester.getCenter(boardFinder);
+
+    // Tap first clear arrow (Arrow 1 on front face)
+    await tester.tapAt(center + const Offset(-101, 4));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    final exitingAfterFirst =
+        board.arrows.where((a) => a.exitDistance > 0 && !a.isExited).toList();
+    expect(exitingAfterFirst.length, 1);
+    expect(find.text('23'), findsOneWidget);
+
+    // Immediately tap a second clear arrow (Arrow 102 on right face) while the first is still mid-flight
+    await tester.tapAt(center + const Offset(87, 48));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 80));
+
+    final exitingInParallel =
+        board.arrows.where((a) => a.exitDistance > 0 && !a.isExited).toList();
+    expect(exitingInParallel.length, 2);
+    expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
+    expect(find.text('22'), findsOneWidget);
+
+    // After ~600ms (20% faster than 700ms), both have finished exiting
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(exitingInParallel.every((a) => a.isExited), isTrue);
+  });
+
+  testWidgets('Pressed clear arrow scales to 1.05x on hold and flies immediately on release',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+
+    final boardFinder = find.byType(PuzzleBoard);
+    final board = tester.widget<PuzzleBoard>(boardFinder);
+    final center = tester.getCenter(boardFinder);
+
+    // Press down on Arrow 1 and hold for 110ms -> scales to 1.05x without exiting yet
+    final press = await tester.startGesture(center + const Offset(-101, 4));
+    await tester.pump(const Duration(milliseconds: 110));
+
+    final arrow1 = board.arrows.firstWhere((a) => a.id == 1);
+    expect(arrow1.exitDistance, 0.0);
+    expect(arrow1.isExited, isFalse);
+    expect(find.text('24'), findsOneWidget);
+
+    // Release -> clear arrow flies immediately without waiting to shrink back
+    await press.up();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 30));
+
+    expect(find.text('23'), findsOneWidget);
+    expect(arrow1.exitDistance, greaterThan(0.0));
+  });
+
+  testWidgets('Tap to Rotate bar appears for 10 seconds with rotate icon then disappears',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+
+    expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsOneWidget);
+    expect(find.text('Tap to Rotate'), findsOneWidget);
+    expect(find.byIcon(Icons.rotate_right_rounded), findsOneWidget);
+
+    // Still visible before 10 seconds elapse
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsOneWidget);
+
+    // Disappears after 10 seconds + fade-out
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(milliseconds: 450));
+    expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsNothing);
   });
 }

@@ -186,6 +186,7 @@ class PuzzleLevel {
   final int gridCols;
   final int gridRows;
   final int maxMistakes;
+  final int durationSeconds;
   final List<CanvasArrow> arrows;
   final List<MazeWall> walls;
   final List<MazeExit> exits;
@@ -197,6 +198,7 @@ class PuzzleLevel {
     this.gridCols = 6,
     this.gridRows = 6,
     this.maxMistakes = 3,
+    this.durationSeconds = 60,
     required this.arrows,
     this.walls = const [],
     this.exits = const [],

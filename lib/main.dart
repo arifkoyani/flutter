@@ -1,10 +1,12 @@
 import 'package:material_ui/material_ui.dart';
+import 'data/levels_data.dart';
 import 'screens/splash_screen.dart';
 import 'services/audio_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await AudioService.instance.init();
+  await LevelsData.load();
   runApp(const MyApp());
 }
 
