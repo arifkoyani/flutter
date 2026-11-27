@@ -480,8 +480,9 @@ class _PuzzleBoardState extends State<PuzzleBoard>
   bool _isPathClear(CanvasArrow arrow) {
     final tip = arrow.tip;
     final dir = arrow.exitDirection.unitVector;
+    final maxDist = math.max(widget.gridCols, widget.gridRows) + 2.0;
 
-    for (double step = 0.4; step <= 8.0; step += 0.3) {
+    for (double step = 0.4; step <= maxDist; step += 0.3) {
       final probe = Offset(tip.dx + dir.dx * step, tip.dy + dir.dy * step);
 
       for (final other in widget.arrows) {

@@ -642,7 +642,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
               child: ElevatedButton(
                 onPressed: () {
                   Navigator.pop(context);
-                  if (_level.id < 5) {
+                  if (_level.id < LevelsData.totalLevels) {
                     setState(() {
                       _loadLevel(_level.id + 1);
                     });
@@ -657,7 +657,9 @@ class _GamePlayScreenState extends State<GamePlayScreen>
                   ),
                 ),
                 child: Text(
-                  _level.id < 5 ? 'Next Stage' : 'Back to Adventure Map',
+                  _level.id < LevelsData.totalLevels
+                      ? 'Next Stage'
+                      : 'Back to Adventure Map',
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.bold,

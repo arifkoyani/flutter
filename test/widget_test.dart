@@ -2,9 +2,11 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:my_android_app/database/game_database.dart';
 import 'package:my_android_app/data/levels_data.dart';
 import 'package:my_android_app/main.dart';
 import 'package:my_android_app/models/puzzle_level.dart';
+import 'package:my_android_app/screens/adventure_map.dart';
 import 'package:my_android_app/screens/game_play_screen.dart';
 import 'package:my_android_app/widgets/puzzle_board.dart';
 import 'package:my_android_app/screens/settings/setting.dart';
@@ -12,25 +14,21 @@ import 'package:my_android_app/screens/settings/privacy_policy.dart';
 import 'package:my_android_app/screens/settings/terms_of_service.dart';
 
 void main() {
-  testWidgets('Full flow: Splash -> Amaze -> Map -> Play Level 1',
+  testWidgets('Full flow: Splash -> Map -> Play Level 1',
       (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
 
     // 1. Splash screen displays "Weconnect Games"
     expect(find.text('Weconnect Games'), findsOneWidget);
 
-    // 2. Advance through Splash to AmazeScreen
+    // 2. Advance directly from Splash to Dashboard (Adventure Map)
     await tester.pump(const Duration(milliseconds: 2300));
-    await tester.pumpAndSettle();
-    expect(find.text('---Amaze GO!'), findsOneWidget);
-
-    // 3. Advance through Amaze to Dashboard (Adventure Map)
-    await tester.pump(const Duration(milliseconds: 2600));
     await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('---Amaze GO!'), findsNothing);
 
-    // Verify Adventure Map upward flow markers, 5 levels, and no Reset View button
+    // Verify Adventure Map upward flow markers, 10 levels, and no Reset View button
     expect(find.text('RESET VIEW'), findsNothing);
-    expect(find.text('THE SUMMIT • STAGE 5'), findsOneWidget);
+    expect(find.text('THE SUMMIT • STAGE 10'), findsOneWidget);
     expect(find.text('First Steps'), findsOneWidget);
     expect(find.text('PLAY • STAGE 1'), findsOneWidget);
     expect(find.byKey(const ValueKey('stage_1_3d_illustration')), findsOneWidget);
@@ -38,34 +36,19 @@ void main() {
     expect(find.byKey(const ValueKey('stage_3_3d_illustration')), findsOneWidget);
     expect(find.byKey(const ValueKey('stage_4_3d_illustration')), findsOneWidget);
     expect(find.byKey(const ValueKey('stage_5_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_6_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_7_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_8_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_9_3d_illustration')), findsOneWidget);
+    expect(find.byKey(const ValueKey('stage_10_3d_illustration')), findsOneWidget);
     expect(find.byKey(const ValueKey('flexible_stage_threads')), findsOneWidget);
 
-    // Drag Stage 5 card horizontally & vertically and verify it moves cleanly
-    final card5Finder = find.byKey(const ValueKey('draggable_stage_card_5'));
-    final beforeDrag = tester.getTopLeft(card5Finder);
-    final cardDrag = await tester.startGesture(tester.getCenter(card5Finder));
-    await cardDrag.moveBy(const Offset(24, 18));
-    await tester.pump();
-    await cardDrag.moveBy(const Offset(36, 28));
-    await tester.pump();
-    await cardDrag.up();
-    await tester.pump(const Duration(milliseconds: 200));
-    final afterDrag = tester.getTopLeft(card5Finder);
-    expect(afterDrag.dx, greaterThan(beforeDrag.dx));
-    expect(afterDrag.dy, greaterThan(beforeDrag.dy));
-
-    // Verify Adventure Map supports vertical drag on background via InteractiveViewer, then tap Stage 1
+    // Verify Adventure Map supports vertical drag on background via InteractiveViewer
     final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
     final initialMatrix = viewer.transformationController!.value.clone();
-    await tester.dragFrom(const Offset(100, 420), const Offset(0, -360));
-    await tester.pump(const Duration(milliseconds: 300));
-    await tester.dragFrom(const Offset(100, 420), const Offset(0, -360));
+    await tester.dragFrom(const Offset(100, 420), const Offset(0, -140));
     await tester.pump(const Duration(milliseconds: 400));
     expect(viewer.transformationController!.value, isNot(equals(initialMatrix)));
-
-    await tester.tap(find.byKey(const ValueKey('draggable_stage_card_1')));
-    await tester.pump(const Duration(milliseconds: 200));
-    expect(find.text('PLAY • STAGE 1'), findsOneWidget);
 
     // Tap PLAY • STAGE 1 to open GamePlayScreen for Level 1
     await tester.tap(find.text('PLAY • STAGE 1'));
@@ -206,10 +189,10 @@ void main() {
     expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
   });
 
-  test('All 5 JSON levels do not overlap and every face is solvable', () async {
+  test('All 10 JSON levels load, do not overlap, and every face is solvable', () async {
     await LevelsData.load();
     expect(LevelsData.isLoaded, isTrue);
-    expect(LevelsData.levelSummaries.length, 5);
+    expect(LevelsData.levelSummaries.length, 10);
 
     double distToSeg(Offset p, Offset a, Offset b) {
       final ab = b - a;
@@ -233,13 +216,39 @@ void main() {
       return best;
     }
 
-    final expectedCounts = {1: 24, 2: 34, 3: 47, 4: 68, 5: 92};
-    final expectedDurations = {1: 30, 2: 45, 3: 60, 4: 75, 5: 90};
+    final expectedCounts = {
+      1: 24,
+      2: 34,
+      3: 47,
+      4: 68,
+      5: 92,
+      6: 110,
+      7: 128,
+      8: 152,
+      9: 176,
+      10: 204,
+    };
+    final expectedDurations = {
+      1: 30,
+      2: 45,
+      3: 60,
+      4: 75,
+      5: 90,
+      6: 80,
+      7: 95,
+      8: 105,
+      9: 120,
+      10: 120,
+    };
 
-    for (final stageId in [1, 2, 3, 4, 5]) {
+    for (final stageId in [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
       final level = LevelsData.getLevel(stageId);
-      expect(level.arrows.length, expectedCounts[stageId]);
+      expect(level.arrows.length, expectedCounts[stageId],
+          reason: 'Stage $stageId arrow count mismatch');
       expect(level.durationSeconds, expectedDurations[stageId]);
+
+      final maxCoord = level.gridCols - 0.3;
+      final rayReach = level.gridCols + 2.0;
 
       for (final face in CubeFace.values) {
         final faceArrows = level.arrows
@@ -252,8 +261,8 @@ void main() {
         for (int i = 0; i < faceArrows.length; i++) {
           final a = faceArrows[i];
           for (final pt in a.points) {
-            expect(pt.dx, inInclusiveRange(0.3, 5.7));
-            expect(pt.dy, inInclusiveRange(0.3, 5.7));
+            expect(pt.dx, inInclusiveRange(0.3, maxCoord));
+            expect(pt.dy, inInclusiveRange(0.3, maxCoord));
           }
           for (int j = i + 1; j < faceArrows.length; j++) {
             final b = faceArrows[j];
@@ -279,7 +288,7 @@ void main() {
           final clearArrow = remaining.where((arrow) {
             final tip = arrow.tip;
             final dir = arrow.exitDirection.unitVector;
-            for (double step = 0.4; step <= 8.0; step += 0.3) {
+            for (double step = 0.4; step <= rayReach; step += 0.3) {
               final probe = Offset(tip.dx + dir.dx * step, tip.dy + dir.dy * step);
               for (final other in remaining) {
                 if (other.id == arrow.id) continue;
@@ -468,6 +477,13 @@ void main() {
     expect(find.text('rotate any angle'), findsNothing);
     expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsOneWidget);
     expect(find.text('zoom in & out'), findsOneWidget);
+    expect(find.text('Pinch to Zoom'), findsNothing);
+
+    // At 23s (> 75% elapsed): Pinch tutorial & label fade away cleanly
+    await tester.pump(const Duration(seconds: 8));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsNothing);
+    expect(find.text('zoom in & out'), findsNothing);
 
     // Stage 2 also shows the tutorials
     await tester.pumpWidget(
@@ -492,12 +508,51 @@ void main() {
       expect(find.text('rotate any angle'), findsNothing);
       expect(find.text('zoom in & out'), findsNothing);
     }
-    expect(find.text('Pinch to Zoom'), findsNothing);
+  });
 
-    // At 23s (> 75% elapsed): Pinch tutorial & label fade away cleanly
-    await tester.pump(const Duration(seconds: 8));
-    await tester.pump(const Duration(milliseconds: 400));
-    expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsNothing);
-    expect(find.text('zoom in & out'), findsNothing);
+  testWidgets('Adventure Map stage cards slide-drag with flexible threads',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AdventureMapScreen(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final topCardFinder = find.byKey(const ValueKey('draggable_stage_card_10'));
+    final beforeDrag = tester.getTopLeft(topCardFinder);
+    final cardDrag = await tester.startGesture(tester.getCenter(topCardFinder));
+    await cardDrag.moveBy(const Offset(24, 18));
+    await tester.pump();
+    await cardDrag.moveBy(const Offset(36, 28));
+    await tester.pump();
+    await cardDrag.up();
+    await tester.pump(const Duration(milliseconds: 200));
+    final afterDrag = tester.getTopLeft(topCardFinder);
+    expect(afterDrag.dx, greaterThan(beforeDrag.dx));
+    expect(afterDrag.dy, greaterThan(beforeDrag.dy));
+    expect(find.text('PLAY • STAGE 10'), findsOneWidget);
+  });
+
+  testWidgets('Completing Stage 5 unlocks Stage 6 and opens Frozen Peaks from levels.json',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+    await GameDatabase.instance.recordLevelCompletion(
+      levelId: 5,
+      stars: 3,
+      mistakes: 0,
+    );
+    expect(GameDatabase.instance.isLevelUnlocked(6), isTrue);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 6),
+      ),
+    );
+    expect(find.text('Stage 6: Frozen Peaks'), findsOneWidget);
+    expect(find.text('110'), findsOneWidget);
+    expect(find.text('01:20'), findsOneWidget);
   });
 }

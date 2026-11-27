@@ -1,5 +1,5 @@
 {
-  "totalLevels": 5,
+  "totalLevels": 10,
   "levels": [
     {
       "id": 1,
@@ -71,8 +71,8 @@
     },
     {
       "id": 5,
-      "levelName": "Final Challenge",
-      "subtitle": "Ultimate Quest",
+      "levelName": "Prism Cube",
+      "subtitle": "Floating Core",
       "gridSize": 6,
       "maxMistakes": 3,
       "arrowsPerSide": {
@@ -85,6 +85,91 @@
       },
       "totalArrows": 92,
       "durationSeconds": 90
+    },
+    {
+      "id": 6,
+      "levelName": "Frozen Peaks",
+      "subtitle": "Ice Adventure",
+      "gridSize": 7,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 20,
+        "back": 18,
+        "left": 19,
+        "right": 19,
+        "top": 17,
+        "bottom": 17
+      },
+      "totalArrows": 110,
+      "durationSeconds": 80
+    },
+    {
+      "id": 7,
+      "levelName": "Lava Kingdom",
+      "subtitle": "Fire and Fury",
+      "gridSize": 7,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 23,
+        "back": 21,
+        "left": 22,
+        "right": 22,
+        "top": 20,
+        "bottom": 20
+      },
+      "totalArrows": 128,
+      "durationSeconds": 95
+    },
+    {
+      "id": 8,
+      "levelName": "Ocean Depths",
+      "subtitle": "Underwater Mystery",
+      "gridSize": 8,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 27,
+        "back": 25,
+        "left": 26,
+        "right": 26,
+        "top": 24,
+        "bottom": 24
+      },
+      "totalArrows": 152,
+      "durationSeconds": 105
+    },
+    {
+      "id": 9,
+      "levelName": "Sky Islands",
+      "subtitle": "Above the Clouds",
+      "gridSize": 8,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 32,
+        "back": 29,
+        "left": 30,
+        "right": 30,
+        "top": 27,
+        "bottom": 28
+      },
+      "totalArrows": 176,
+      "durationSeconds": 120
+    },
+    {
+      "id": 10,
+      "levelName": "Crystal Temple",
+      "subtitle": "The Ultimate Quest",
+      "gridSize": 9,
+      "maxMistakes": 3,
+      "arrowsPerSide": {
+        "front": 36,
+        "back": 34,
+        "left": 35,
+        "right": 35,
+        "top": 32,
+        "bottom": 32
+      },
+      "totalArrows": 204,
+      "durationSeconds": 120
     }
   ]
 }

@@ -1,5 +1,5 @@
 import 'package:material_ui/material_ui.dart';
-import 'amaze_screen.dart';
+import 'dash_board.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -36,7 +36,7 @@ class _SplashScreenState extends State<SplashScreen>
         if (mounted) {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (context) => const AmazeScreen()),
+            MaterialPageRoute(builder: (context) => const DashboardScreen()),
           );
         }
       }

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 import '../models/puzzle_level.dart';
@@ -65,6 +66,9 @@ class LevelsData {
   static bool _isLoaded = false;
 
   static bool get isLoaded => _isLoaded;
+
+  static int get totalLevels =>
+      _jsonConfigs.isNotEmpty ? _jsonConfigs.length : levels.length;
 
   static List<LevelSummary> get levelSummaries {
     if (_jsonConfigs.isNotEmpty) {
@@ -311,14 +315,15 @@ class LevelsData {
       ],
     ),
 
-    // Level 5: Final Challenge
+    // Level 5: Prism Cube
     PuzzleLevel(
       id: 5,
-      name: 'Final Challenge',
-      subtitle: 'Master the Labyrinth',
+      name: 'Prism Cube',
+      subtitle: 'Floating Core',
       gridCols: 6,
       gridRows: 6,
       maxMistakes: 3,
+      durationSeconds: 90,
       arrows: [
         CanvasArrow(
           id: 1,
@@ -326,6 +331,66 @@ class LevelsData {
           exitDirection: ArrowDirection.up,
         ),
       ],
+    ),
+
+    // Level 6: Frozen Peaks
+    PuzzleLevel(
+      id: 6,
+      name: 'Frozen Peaks',
+      subtitle: 'Ice Adventure',
+      gridCols: 7,
+      gridRows: 7,
+      maxMistakes: 3,
+      durationSeconds: 105,
+      arrows: const [],
+    ),
+
+    // Level 7: Lava Kingdom
+    PuzzleLevel(
+      id: 7,
+      name: 'Lava Kingdom',
+      subtitle: 'Fire and Fury',
+      gridCols: 7,
+      gridRows: 7,
+      maxMistakes: 3,
+      durationSeconds: 120,
+      arrows: const [],
+    ),
+
+    // Level 8: Ocean Depths
+    PuzzleLevel(
+      id: 8,
+      name: 'Ocean Depths',
+      subtitle: 'Underwater Mystery',
+      gridCols: 8,
+      gridRows: 8,
+      maxMistakes: 3,
+      durationSeconds: 135,
+      arrows: const [],
+    ),
+
+    // Level 9: Sky Islands
+    PuzzleLevel(
+      id: 9,
+      name: 'Sky Islands',
+      subtitle: 'Above the Clouds',
+      gridCols: 8,
+      gridRows: 8,
+      maxMistakes: 3,
+      durationSeconds: 150,
+      arrows: const [],
+    ),
+
+    // Level 10: Crystal Temple
+    PuzzleLevel(
+      id: 10,
+      name: 'Crystal Temple',
+      subtitle: 'The Ultimate Quest',
+      gridCols: 9,
+      gridRows: 9,
+      maxMistakes: 3,
+      durationSeconds: 165,
+      arrows: const [],
     ),
   ];
 
@@ -335,31 +400,71 @@ class LevelsData {
       orElse: () => levels.first,
     );
     final config = _jsonConfigs[id];
-    final frontPool = config != null ? levels.first.arrows : base.arrows;
-    final sidePool = _sideFaceArrows();
+    final gridSize = config?.gridSize ?? base.gridCols;
+    final arrows = <CanvasArrow>[];
 
-    List<CanvasArrow> buildFaceArrows(CubeFace face, List<CanvasArrow> pool) {
-      final targetCount = config?.arrowsPerSide[face];
-      if (targetCount == null) {
-        return pool.map((a) => a.clone()).toList();
+    if (gridSize > 6) {
+      final defaultCounts = <CubeFace, int>{
+        CubeFace.front: 20 + (id - 6) * 4,
+        CubeFace.back: 18 + (id - 6) * 4,
+        CubeFace.left: 19 + (id - 6) * 4,
+        CubeFace.right: 19 + (id - 6) * 4,
+        CubeFace.top: 17 + (id - 6) * 4,
+        CubeFace.bottom: 17 + (id - 6) * 4,
+      };
+      final facesOrder = [
+        CubeFace.front,
+        CubeFace.right,
+        CubeFace.left,
+        CubeFace.back,
+        CubeFace.top,
+        CubeFace.bottom,
+      ];
+      for (int fIdx = 0; fIdx < facesOrder.length; fIdx++) {
+        final face = facesOrder[fIdx];
+        final targetCount =
+            config?.arrowsPerSide[face] ?? defaultCounts[face]!;
+        arrows.addAll(
+          _generateDenseFaceArrows(
+            face: face,
+            gridSize: gridSize,
+            targetCount: targetCount,
+            idOffset: (id * 1000) + (fIdx * 100) + 1,
+            seed: id * 131 + fIdx * 37,
+          ),
+        );
       }
-      return pool.take(targetCount.clamp(0, pool.length)).map((a) => a.clone()).toList();
-    }
+    } else {
+      final frontPool = config != null ? levels.first.arrows : base.arrows;
+      final sidePool = _sideFaceArrows();
 
-    final arrows = <CanvasArrow>[
-      ...buildFaceArrows(CubeFace.front, frontPool),
+      List<CanvasArrow> buildFaceArrows(CubeFace face, List<CanvasArrow> pool) {
+        final targetCount = config?.arrowsPerSide[face];
+        if (targetCount == null) {
+          return pool.map((a) => a.clone()).toList();
+        }
+        return pool
+            .take(targetCount.clamp(0, pool.length))
+            .map((a) => a.clone())
+            .toList();
+      }
+
+      arrows.addAll(buildFaceArrows(CubeFace.front, frontPool));
       for (final face in [
         CubeFace.right,
         CubeFace.left,
         CubeFace.back,
         CubeFace.top,
         CubeFace.bottom,
-      ])
-        ...buildFaceArrows(
-          face,
-          sidePool.where((a) => a.placedOn == face).toList(),
-        ),
-    ];
+      ]) {
+        arrows.addAll(
+          buildFaceArrows(
+            face,
+            sidePool.where((a) => a.placedOn == face).toList(),
+          ),
+        );
+      }
+    }
 
     return PuzzleLevel(
       id: config?.id ?? base.id,
@@ -367,14 +472,212 @@ class LevelsData {
       subtitle: (config != null && config.subtitle.isNotEmpty)
           ? config.subtitle
           : base.subtitle,
-      gridCols: config?.gridSize ?? base.gridCols,
-      gridRows: config?.gridSize ?? base.gridRows,
+      gridCols: gridSize,
+      gridRows: gridSize,
       maxMistakes: config?.maxMistakes ?? base.maxMistakes,
       durationSeconds: config?.durationSeconds ?? base.durationSeconds,
       walls: base.walls,
       exits: base.exits,
       arrows: arrows,
     );
+  }
+
+  /// Generates a dense, non-overlapping, provably solvable set of arrows
+  /// on an expanded grid (Stages 6–10) by placing arrows in reverse clearing
+  /// order onto discrete well-spaced lanes.
+  static List<CanvasArrow> _generateDenseFaceArrows({
+    required CubeFace face,
+    required int gridSize,
+    required int targetCount,
+    required int idOffset,
+    required int seed,
+  }) {
+    final laneCount = gridSize + 3;
+    final span = gridSize - 0.90;
+    final coords = List<double>.generate(
+      laneCount,
+      (i) => 0.45 + (i * span) / (laneCount - 1),
+    );
+
+    List<CanvasArrow> tryBuild({required bool compactOnly, required int runSeed}) {
+      final occupied = List.generate(
+        laneCount,
+        (_) => List<bool>.filled(laneCount, false),
+      );
+      final rayHits = List.generate(
+        laneCount,
+        (_) => List<int>.filled(laneCount, 0),
+      );
+      final rng = math.Random(runSeed);
+      final placed = <CanvasArrow>[];
+
+      bool inBounds(int c, int r) =>
+          c >= 0 && c < laneCount && r >= 0 && r < laneCount;
+
+      int clearRaySteps(int tipC, int tipR, ArrowDirection dir) {
+        final dc = dir.unitVector.dx.round();
+        final dr = dir.unitVector.dy.round();
+        var c = tipC + dc;
+        var r = tipR + dr;
+        var steps = 0;
+        while (inBounds(c, r)) {
+          if (occupied[c][r]) return -1;
+          steps++;
+          c += dc;
+          r += dr;
+        }
+        return steps;
+      }
+
+      void markExitRay(int tipC, int tipR, ArrowDirection dir) {
+        final dc = dir.unitVector.dx.round();
+        final dr = dir.unitVector.dy.round();
+        var c = tipC + dc;
+        var r = tipR + dr;
+        while (inBounds(c, r)) {
+          rayHits[c][r]++;
+          c += dc;
+          r += dr;
+        }
+      }
+
+      const dirs = [
+        ArrowDirection.up,
+        ArrowDirection.down,
+        ArrowDirection.left,
+        ArrowDirection.right,
+      ];
+
+      for (int step = 0; step < targetCount; step++) {
+        final remainingNeeded = targetCount - placed.length;
+        final preferCompact = compactOnly || remainingNeeded >= 14;
+        final candidates = <({
+          List<(int, int)> cells,
+          List<Offset> points,
+          ArrowDirection dir,
+          int score,
+        })>[];
+
+        for (int c0 = 0; c0 < laneCount; c0++) {
+          for (int r0 = 0; r0 < laneCount; r0++) {
+            if (occupied[c0][r0]) continue;
+            for (final dir in dirs) {
+              final dc = dir.unitVector.dx.round();
+              final dr = dir.unitVector.dy.round();
+
+              // Straight segments of length 2..3 (or up to 4 when compactOnly is false)
+              final maxStraight = compactOnly ? 2 : (preferCompact ? 3 : 4);
+              final cells = <(int, int)>[(c0, r0)];
+              for (int len = 2; len <= maxStraight; len++) {
+                final nc = c0 + dc * (len - 1);
+                final nr = r0 + dr * (len - 1);
+                if (!inBounds(nc, nr) || occupied[nc][nr]) break;
+                cells.add((nc, nr));
+                final raySteps = clearRaySteps(nc, nr, dir);
+                if (raySteps >= 0) {
+                  var blockingScore = 0;
+                  for (final cell in cells) {
+                    blockingScore += rayHits[cell.$1][cell.$2] * 5;
+                  }
+                  final score = blockingScore +
+                      raySteps * 3 +
+                      (compactOnly ? -len * 2 : len * 2) +
+                      rng.nextInt(4);
+                  candidates.add((
+                    cells: List<(int, int)>.from(cells),
+                    points: [
+                      Offset(coords[c0], coords[r0]),
+                      Offset(coords[nc], coords[nr]),
+                    ],
+                    dir: dir,
+                    score: score,
+                  ));
+                }
+              }
+
+              if (compactOnly) continue;
+
+              // L-bend segments: leg1 along perp, leg2 along dir
+              for (final perpSign in [-1, 1]) {
+                final pdc = -dr * perpSign;
+                final pdr = dc * perpSign;
+                final maxLeg1 = preferCompact ? 1 : 2;
+                for (int leg1 = 1; leg1 <= maxLeg1; leg1++) {
+                  final bendC = c0 + pdc * leg1;
+                  final bendR = r0 + pdr * leg1;
+                  if (!inBounds(bendC, bendR) || occupied[bendC][bendR]) break;
+                  final maxLeg2 = preferCompact ? 1 : 2;
+                  for (int leg2 = 1; leg2 <= maxLeg2; leg2++) {
+                    final tipC = bendC + dc * leg2;
+                    final tipR = bendR + dr * leg2;
+                    if (!inBounds(tipC, tipR) || occupied[tipC][tipR]) break;
+
+                    final raySteps = clearRaySteps(tipC, tipR, dir);
+                    if (raySteps >= 0) {
+                      final lCells = <(int, int)>[];
+                      for (int k = 0; k <= leg1; k++) {
+                        lCells.add((c0 + pdc * k, r0 + pdr * k));
+                      }
+                      for (int k = 1; k <= leg2; k++) {
+                        lCells.add((bendC + dc * k, bendR + dr * k));
+                      }
+                      var blockingScore = 0;
+                      for (final cell in lCells) {
+                        blockingScore += rayHits[cell.$1][cell.$2] * 6;
+                      }
+                      final score = blockingScore +
+                          raySteps * 3 +
+                          (preferCompact ? 3 : 7) +
+                          rng.nextInt(4);
+                      candidates.add((
+                        cells: lCells,
+                        points: [
+                          Offset(coords[c0], coords[r0]),
+                          Offset(coords[bendC], coords[bendR]),
+                          Offset(coords[tipC], coords[tipR]),
+                        ],
+                        dir: dir,
+                        score: score,
+                      ));
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (candidates.isEmpty) break;
+        candidates.sort((a, b) => b.score.compareTo(a.score));
+        final chosen = candidates.first;
+        for (final cell in chosen.cells) {
+          occupied[cell.$1][cell.$2] = true;
+        }
+        final tipCell = chosen.cells.last;
+        markExitRay(tipCell.$1, tipCell.$2, chosen.dir);
+
+        placed.add(
+          CanvasArrow(
+            id: idOffset + placed.length,
+            face: face,
+            points: chosen.points,
+            exitDirection: chosen.dir,
+          ),
+        );
+      }
+
+      return placed;
+    }
+
+    var best = tryBuild(compactOnly: false, runSeed: seed);
+    if (best.length == targetCount) return best;
+
+    for (int attempt = 1; attempt <= 6; attempt++) {
+      final candidate = tryBuild(compactOnly: attempt >= 3, runSeed: seed + attempt * 17);
+      if (candidate.length == targetCount) return candidate;
+      if (candidate.length > best.length) best = candidate;
+    }
+    return best;
   }
 
   /// Denser solvable sets for the five faces around the front puzzle.

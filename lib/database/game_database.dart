@@ -68,7 +68,7 @@ class GameDatabase extends ChangeNotifier {
   void _initializeDefaultRecords() {
     // Level 1 is unlocked by default
     _records[1] = const LevelRecord(levelId: 1, isUnlocked: true);
-    for (int i = 2; i <= 5; i++) {
+    for (int i = 2; i <= 10; i++) {
       _records[i] = LevelRecord(levelId: i, isUnlocked: false);
     }
   }

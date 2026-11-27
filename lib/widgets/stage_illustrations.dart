@@ -2,8 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:material_ui/material_ui.dart';
 
-/// Renders soft-3D isometric game illustrations for Stages 1–5 on the
-/// Adventure Map cards using the app's warm orange & cream palette.
+/// Renders soft-3D isometric game illustrations for Stages 1–10 on the
+/// Adventure Map cards using consistent isometric perspective & lighting.
 class Stage3DIllustration extends StatelessWidget {
   final int stageId;
   final bool isSelected;
@@ -17,7 +17,7 @@ class Stage3DIllustration extends StatelessWidget {
   });
 
   static bool supportsStage(int stageId) =>
-      stageId >= 1 && stageId <= 5;
+      stageId >= 1 && stageId <= 10;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +27,11 @@ class Stage3DIllustration extends StatelessWidget {
       3 => _Maze3DPainter(isSelected: isSelected),
       4 => _Desert3DPainter(isSelected: isSelected),
       5 => _FinalCube3DPainter(isSelected: isSelected),
+      6 => _FrozenPeaks3DPainter(isSelected: isSelected),
+      7 => _LavaKingdom3DPainter(isSelected: isSelected),
+      8 => _OceanDepths3DPainter(isSelected: isSelected),
+      9 => _SkyIslands3DPainter(isSelected: isSelected),
+      10 => _CrystalTemple3DPainter(isSelected: isSelected),
       _ => null,
     };
 
@@ -1870,5 +1875,1179 @@ class _FinalCube3DPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _FinalCube3DPainter oldDelegate) =>
+      oldDelegate.isSelected != isSelected;
+}
+
+/// Shared 3D crystal cluster helper used by Frozen Peaks and Crystal Temple.
+void _draw3DCrystal(
+  Canvas canvas, {
+  required Offset base,
+  required double width,
+  required double height,
+  required Color lit,
+  required Color mid,
+  required Color shade,
+  double tilt = 0.0,
+}) {
+  canvas.save();
+  canvas.translate(base.dx, base.dy);
+  canvas.rotate(tilt);
+
+  final hw = width * 0.5;
+  final tip = Offset(0, -height);
+  final midL = Offset(-hw, -height * 0.34);
+  final midC = Offset(hw * 0.08, -height * 0.26);
+  final midR = Offset(hw, -height * 0.38);
+  final botL = Offset(-hw * 0.72, 0);
+  final botC = Offset(hw * 0.05, height * 0.08);
+  final botR = Offset(hw * 0.78, -height * 0.03);
+
+  // Left sunlit facet
+  canvas.drawPath(
+    Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(midL.dx, midL.dy)
+      ..lineTo(botL.dx, botL.dy)
+      ..lineTo(botC.dx, botC.dy)
+      ..lineTo(midC.dx, midC.dy)
+      ..close(),
+    Paint()
+      ..shader = ui.Gradient.linear(
+        tip,
+        botL,
+        [lit, mid],
+      ),
+  );
+
+  // Right shaded facet
+  canvas.drawPath(
+    Path()
+      ..moveTo(tip.dx, tip.dy)
+      ..lineTo(midC.dx, midC.dy)
+      ..lineTo(botC.dx, botC.dy)
+      ..lineTo(botR.dx, botR.dy)
+      ..lineTo(midR.dx, midR.dy)
+      ..close(),
+    Paint()
+      ..shader = ui.Gradient.linear(
+        tip,
+        botR,
+        [mid, shade],
+      ),
+  );
+
+  // Crisp facet ridge highlight
+  canvas.drawLine(
+    tip,
+    midC,
+    Paint()
+      ..color = Colors.white.withValues(alpha: 0.78)
+      ..strokeWidth = 0.9
+      ..strokeCap = StrokeCap.round,
+  );
+  canvas.restore();
+}
+
+/// Stage 6: Frozen Peaks – miniature snowy mountain landscape, blue-white ice
+/// crystals, frozen waterfall, snow-covered pine trees, glowing icy path, and
+/// snow rocks.
+class _FrozenPeaks3DPainter extends CustomPainter {
+  final bool isSelected;
+
+  const _FrozenPeaks3DPainter({required this.isSelected});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    _StageArtHelpers.drawGroundShadow(
+      canvas,
+      Offset(w * 0.50, h * 0.82),
+      w * 0.42,
+      h * 0.14,
+      alpha: isSelected ? 0.34 : 0.22,
+      blur: 7.5,
+    );
+
+    // 1. Rounded snowy isometric diorama base
+    final basePath = Path()
+      ..moveTo(w * 0.10, h * 0.68)
+      ..quadraticBezierTo(w * 0.25, h * 0.54, w * 0.52, h * 0.54)
+      ..quadraticBezierTo(w * 0.84, h * 0.55, w * 0.90, h * 0.71)
+      ..quadraticBezierTo(w * 0.86, h * 0.87, w * 0.50, h * 0.88)
+      ..quadraticBezierTo(w * 0.14, h * 0.86, w * 0.10, h * 0.68)
+      ..close();
+    canvas.drawPath(
+      basePath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(w * 0.14, h * 0.54),
+          Offset(w * 0.86, h * 0.88),
+          const [Color(0xFFFFFFFF), Color(0xFFD6EEFF), Color(0xFF7CB6E6)],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+
+    // 2. Main snow mountain (left-center) & secondary peak (right)
+    _drawSnowPeak(
+      canvas,
+      peak: Offset(w * 0.36, h * 0.15),
+      leftBase: Offset(w * 0.13, h * 0.67),
+      midBase: Offset(w * 0.39, h * 0.70),
+      rightBase: Offset(w * 0.61, h * 0.64),
+    );
+    _drawSnowPeak(
+      canvas,
+      peak: Offset(w * 0.66, h * 0.24),
+      leftBase: Offset(w * 0.47, h * 0.65),
+      midBase: Offset(w * 0.66, h * 0.69),
+      rightBase: Offset(w * 0.87, h * 0.66),
+    );
+
+    // 3. Frozen waterfall cascading into icy front pool
+    final poolRect = Rect.fromCenter(
+      center: Offset(w * 0.52, h * 0.77),
+      width: w * 0.28,
+      height: h * 0.13,
+    );
+    canvas.drawOval(
+      poolRect,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(w * 0.50, h * 0.76),
+          w * 0.16,
+          const [Color(0xFFE8FAFF), Color(0xFF7ED8FA), Color(0xFF3A96D4)],
+          const [0.0, 0.58, 1.0],
+        ),
+    );
+    final fallPath = Path()
+      ..moveTo(w * 0.49, h * 0.51)
+      ..quadraticBezierTo(w * 0.50, h * 0.64, w * 0.48, h * 0.76)
+      ..lineTo(w * 0.55, h * 0.76)
+      ..quadraticBezierTo(w * 0.54, h * 0.63, w * 0.53, h * 0.51)
+      ..close();
+    canvas.drawPath(
+      fallPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(w * 0.51, h * 0.51),
+          Offset(w * 0.51, h * 0.76),
+          const [Color(0xFFFFFFFF), Color(0xFF9BE3FF), Color(0xFF56B4E9)],
+          const [0.0, 0.5, 1.0],
+        ),
+    );
+
+    // 4. Glowing icy pathway winding from valley to front-left
+    final icePath = Path()
+      ..moveTo(w * 0.50, h * 0.62)
+      ..quadraticBezierTo(w * 0.43, h * 0.72, w * 0.34, h * 0.76)
+      ..quadraticBezierTo(w * 0.26, h * 0.80, w * 0.22, h * 0.77);
+    canvas.drawPath(
+      icePath,
+      Paint()
+        ..color = const Color(0xFF8BE8FF).withValues(alpha: 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6.5
+        ..strokeCap = StrokeCap.round
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+    );
+    canvas.drawPath(
+      icePath,
+      Paint()
+        ..color = const Color(0xFFEFFCFF)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.2
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // 5. Large blue-white ice crystals
+    _draw3DCrystal(
+      canvas,
+      base: Offset(w * 0.77, h * 0.73),
+      width: 10.5,
+      height: 22.0,
+      lit: const Color(0xFFFFFFFF),
+      mid: const Color(0xFF93DCFF),
+      shade: const Color(0xFF3E8FD1),
+      tilt: 0.14,
+    );
+    _draw3DCrystal(
+      canvas,
+      base: Offset(w * 0.83, h * 0.75),
+      width: 7.5,
+      height: 15.0,
+      lit: const Color(0xFFF2FBFF),
+      mid: const Color(0xFF7FD2FC),
+      shade: const Color(0xFF337EC2),
+      tilt: 0.32,
+    );
+    _draw3DCrystal(
+      canvas,
+      base: Offset(w * 0.20, h * 0.70),
+      width: 8.5,
+      height: 17.5,
+      lit: const Color(0xFFFFFFFF),
+      mid: const Color(0xFFA0E2FF),
+      shade: const Color(0xFF4797D6),
+      tilt: -0.22,
+    );
+
+    // 6. Snow-covered pine trees & snow rocks
+    _drawSnowPine(canvas, Offset(w * 0.29, h * 0.71), 15.0);
+    _drawSnowPine(canvas, Offset(w * 0.67, h * 0.76), 12.0);
+    _StageArtHelpers.drawRock(
+      canvas,
+      Offset(w * 0.40, h * 0.82),
+      4.2,
+      2.6,
+      lit: const Color(0xFFFFFFFF),
+      mid: const Color(0xFFC5DFF5),
+      shade: const Color(0xFF7FAAD1),
+    );
+    _StageArtHelpers.drawRock(
+      canvas,
+      Offset(w * 0.62, h * 0.82),
+      3.5,
+      2.2,
+      lit: const Color(0xFFFFFFFF),
+      mid: const Color(0xFFBBD8F2),
+      shade: const Color(0xFF77A2CA),
+    );
+  }
+
+  void _drawSnowPeak(
+    Canvas canvas, {
+    required Offset peak,
+    required Offset leftBase,
+    required Offset midBase,
+    required Offset rightBase,
+  }) {
+    // Left sunlit rock & snow slope
+    canvas.drawPath(
+      Path()
+        ..moveTo(peak.dx, peak.dy)
+        ..lineTo(leftBase.dx, leftBase.dy)
+        ..lineTo(midBase.dx, midBase.dy)
+        ..close(),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          peak,
+          leftBase,
+          const [Color(0xFFFFFFFF), Color(0xFFD2E8FA), Color(0xFF8CBCE6)],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+    // Right shaded icy ridge
+    canvas.drawPath(
+      Path()
+        ..moveTo(peak.dx, peak.dy)
+        ..lineTo(midBase.dx, midBase.dy)
+        ..lineTo(rightBase.dx, rightBase.dy)
+        ..close(),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          peak,
+          rightBase,
+          const [Color(0xFFDDEEFF), Color(0xFF85B8E4), Color(0xFF538AC4)],
+          const [0.0, 0.52, 1.0],
+        ),
+    );
+
+    // Bright rounded snow cap draped over peak
+    final snowCap = Path()
+      ..moveTo(peak.dx, peak.dy)
+      ..lineTo(peak.dx - (peak.dx - leftBase.dx) * 0.44, peak.dy + (leftBase.dy - peak.dy) * 0.42)
+      ..quadraticBezierTo(
+        midBase.dx - (midBase.dx - peak.dx) * 0.4,
+        peak.dy + (midBase.dy - peak.dy) * 0.48,
+        peak.dx + (midBase.dx - peak.dx) * 0.5,
+        peak.dy + (midBase.dy - peak.dy) * 0.44,
+      )
+      ..lineTo(peak.dx + (rightBase.dx - peak.dx) * 0.42, peak.dy + (rightBase.dy - peak.dy) * 0.40)
+      ..close();
+    canvas.drawPath(
+      snowCap,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          peak,
+          Offset(peak.dx + 8, peak.dy + 18),
+          const [Color(0xFFFFFFFF), Color(0xFFE1F3FF)],
+        ),
+    );
+  }
+
+  void _drawSnowPine(Canvas canvas, Offset base, double h) {
+    _StageArtHelpers.drawGroundShadow(
+      canvas,
+      Offset(base.dx + 1, base.dy + 1),
+      h * 0.34,
+      h * 0.14,
+      alpha: 0.22,
+      blur: 2.5,
+    );
+    for (int i = 0; i < 2; i++) {
+      final t = i * 0.42;
+      final bw = h * (0.62 - i * 0.14);
+      final topY = base.dy - h * (0.65 + i * 0.35);
+      final botY = base.dy - h * t - 1.5;
+      canvas.drawPath(
+        Path()
+          ..moveTo(base.dx, topY)
+          ..lineTo(base.dx - bw * 0.5, botY)
+          ..quadraticBezierTo(base.dx, botY + 2.2, base.dx + bw * 0.5, botY)
+          ..close(),
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(base.dx - bw * 0.5, topY),
+            Offset(base.dx + bw * 0.5, botY),
+            const [Color(0xFF70C9B2), Color(0xFF2B7A6F)],
+          ),
+      );
+      // Snow frosting on top tip
+      canvas.drawPath(
+        Path()
+          ..moveTo(base.dx, topY)
+          ..lineTo(base.dx - bw * 0.26, topY + (botY - topY) * 0.42)
+          ..quadraticBezierTo(base.dx, topY + (botY - topY) * 0.50, base.dx + bw * 0.26, topY + (botY - topY) * 0.42)
+          ..close(),
+        Paint()..color = Colors.white,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _FrozenPeaks3DPainter oldDelegate) =>
+      oldDelegate.isSelected != isSelected;
+}
+
+/// Stage 7: Lava Kingdom – miniature dark volcanic island with an erupting
+/// volcano, glowing orange lava streams, floating lava platforms, and warm
+/// fire-lit edges.
+class _LavaKingdom3DPainter extends CustomPainter {
+  final bool isSelected;
+
+  const _LavaKingdom3DPainter({required this.isSelected});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Warm orange-red underglow shadow
+    final glowPaint = Paint()
+      ..color = const Color(0xFFFF4500).withValues(alpha: isSelected ? 0.36 : 0.26)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7.0);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(w * 0.50, h * 0.81), width: w * 0.82, height: h * 0.24),
+      glowPaint,
+    );
+
+    // 1. Dark volcanic island base with glowing magma rim
+    final islandPath = Path()
+      ..moveTo(w * 0.12, h * 0.69)
+      ..quadraticBezierTo(w * 0.28, h * 0.56, w * 0.52, h * 0.56)
+      ..quadraticBezierTo(w * 0.84, h * 0.57, w * 0.88, h * 0.72)
+      ..quadraticBezierTo(w * 0.84, h * 0.87, w * 0.50, h * 0.88)
+      ..quadraticBezierTo(w * 0.16, h * 0.86, w * 0.12, h * 0.69)
+      ..close();
+    canvas.drawPath(
+      islandPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(w * 0.14, h * 0.56),
+          Offset(w * 0.86, h * 0.88),
+          const [Color(0xFF6B4C48), Color(0xFF432B29), Color(0xFF231515)],
+          const [0.0, 0.52, 1.0],
+        ),
+    );
+    canvas.drawPath(
+      islandPath,
+      Paint()
+        ..color = const Color(0xFFFF7A33).withValues(alpha: 0.45)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1,
+    );
+
+    // 2. Small floating lava platforms on left & right
+    _drawFloatingLavaChunk(canvas, Offset(w * 0.15, h * 0.44), 13.0);
+    _drawFloatingLavaChunk(canvas, Offset(w * 0.84, h * 0.48), 11.5);
+
+    // 3. Large erupting volcano cone
+    final conePath = Path()
+      ..moveTo(w * 0.40, h * 0.29)
+      ..lineTo(w * 0.60, h * 0.29)
+      ..quadraticBezierTo(w * 0.68, h * 0.52, w * 0.80, h * 0.68)
+      ..quadraticBezierTo(w * 0.50, h * 0.74, w * 0.20, h * 0.68)
+      ..quadraticBezierTo(w * 0.32, h * 0.52, w * 0.40, h * 0.29)
+      ..close();
+    canvas.drawPath(
+      conePath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(w * 0.22, h * 0.30),
+          Offset(w * 0.78, h * 0.72),
+          const [Color(0xFF734A42), Color(0xFF472A26), Color(0xFF251514)],
+          const [0.0, 0.50, 1.0],
+        ),
+    );
+
+    // Glowing crater rim & magma pool
+    final craterRect = Rect.fromCenter(
+      center: Offset(w * 0.50, h * 0.29),
+      width: w * 0.20,
+      height: h * 0.085,
+    );
+    canvas.drawOval(
+      craterRect.inflate(2.5),
+      Paint()
+        ..color = const Color(0xFFFF6600).withValues(alpha: 0.55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0),
+    );
+    canvas.drawOval(
+      craterRect,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(w * 0.50, h * 0.29),
+          w * 0.12,
+          const [Color(0xFFFFF7AE), Color(0xFFFF8C1A), Color(0xFFFF3B00)],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+
+    // 4. Glowing lava streams flowing down the slopes & across base
+    final mainLava = Path()
+      ..moveTo(w * 0.49, h * 0.32)
+      ..quadraticBezierTo(w * 0.44, h * 0.48, w * 0.51, h * 0.58)
+      ..quadraticBezierTo(w * 0.56, h * 0.67, w * 0.43, h * 0.77)
+      ..quadraticBezierTo(w * 0.35, h * 0.82, w * 0.28, h * 0.79);
+    final sideLava = Path()
+      ..moveTo(w * 0.54, h * 0.32)
+      ..quadraticBezierTo(w * 0.61, h * 0.48, w * 0.67, h * 0.66)
+      ..quadraticBezierTo(w * 0.72, h * 0.74, w * 0.77, h * 0.76);
+
+    for (final p in [mainLava, sideLava]) {
+      canvas.drawPath(
+        p,
+        Paint()
+          ..color = const Color(0xFFFF4D00).withValues(alpha: 0.72)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5.4
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+      );
+      canvas.drawPath(
+        p,
+        Paint()
+          ..color = const Color(0xFFFFCC4D)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4
+          ..strokeCap = StrokeCap.round,
+      );
+    }
+
+    // Erupting glowing embers above crater
+    final emberPaint = Paint()..color = const Color(0xFFFFE57F);
+    canvas.drawCircle(Offset(w * 0.46, h * 0.18), 2.1, emberPaint);
+    canvas.drawCircle(Offset(w * 0.53, h * 0.13), 2.5, Paint()..color = const Color(0xFFFF9433));
+    canvas.drawCircle(Offset(w * 0.58, h * 0.20), 1.6, emberPaint);
+
+    // 5. Dark volcanic rocks around base
+    _StageArtHelpers.drawRock(
+      canvas,
+      Offset(w * 0.24, h * 0.73),
+      4.5,
+      3.0,
+      lit: const Color(0xFF7D5C58),
+      mid: const Color(0xFF4A3331),
+      shade: const Color(0xFF281919),
+    );
+    _StageArtHelpers.drawRock(
+      canvas,
+      Offset(w * 0.66, h * 0.80),
+      4.8,
+      3.1,
+      lit: const Color(0xFF845A52),
+      mid: const Color(0xFF4B312F),
+      shade: const Color(0xFF271717),
+    );
+  }
+
+  void _drawFloatingLavaChunk(Canvas canvas, Offset center, double w) {
+    final h = w * 0.55;
+    // Glowing lava underside aura
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(center.dx, center.dy + h * 0.45), width: w * 0.9, height: h * 0.6),
+      Paint()
+        ..color = const Color(0xFFFF550D).withValues(alpha: 0.55)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5),
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(center.dx - w * 0.5, center.dy)
+        ..lineTo(center.dx, center.dy - h * 0.45)
+        ..lineTo(center.dx + w * 0.5, center.dy)
+        ..lineTo(center.dx + w * 0.25, center.dy + h * 0.75)
+        ..lineTo(center.dx - w * 0.25, center.dy + h * 0.75)
+        ..close(),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(center.dx - w * 0.4, center.dy - h * 0.4),
+          Offset(center.dx + w * 0.4, center.dy + h * 0.7),
+          const [Color(0xFF75524C), Color(0xFF33201F)],
+        ),
+    );
+    // Glowing magma top crack
+    canvas.drawOval(
+      Rect.fromCenter(center: center, width: w * 0.45, height: h * 0.26),
+      Paint()..color = const Color(0xFFFF9833),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _LavaKingdom3DPainter oldDelegate) =>
+      oldDelegate.isSelected != isSelected;
+}
+
+/// Stage 8: Ocean Depths – miniature underwater ocean seabed, mysterious glowing
+/// cave, colorful coral reef, blue crystals, underwater rocks, and tropical fish.
+class _OceanDepths3DPainter extends CustomPainter {
+  final bool isSelected;
+
+  const _OceanDepths3DPainter({required this.isSelected});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    _StageArtHelpers.drawGroundShadow(
+      canvas,
+      Offset(w * 0.50, h * 0.82),
+      w * 0.42,
+      h * 0.14,
+      alpha: isSelected ? 0.34 : 0.22,
+      blur: 7.5,
+    );
+
+    // 1. Rounded ocean floor seabed base
+    final seabed = Path()
+      ..moveTo(w * 0.10, h * 0.68)
+      ..quadraticBezierTo(w * 0.26, h * 0.53, w * 0.52, h * 0.53)
+      ..quadraticBezierTo(w * 0.84, h * 0.54, w * 0.90, h * 0.70)
+      ..quadraticBezierTo(w * 0.86, h * 0.87, w * 0.50, h * 0.88)
+      ..quadraticBezierTo(w * 0.14, h * 0.86, w * 0.10, h * 0.68)
+      ..close();
+    canvas.drawPath(
+      seabed,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(w * 0.15, h * 0.54),
+          Offset(w * 0.85, h * 0.88),
+          const [Color(0xFF8BE2EC), Color(0xFF3399C6), Color(0xFF134A78)],
+          const [0.0, 0.48, 1.0],
+        ),
+    );
+
+    // 2. Mysterious glowing underwater cave (back-left)
+    final caveOuter = Path()
+      ..moveTo(w * 0.16, h * 0.67)
+      ..quadraticBezierTo(w * 0.18, h * 0.28, w * 0.38, h * 0.26)
+      ..quadraticBezierTo(w * 0.57, h * 0.27, w * 0.60, h * 0.64)
+      ..close();
+    canvas.drawPath(
+      caveOuter,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(w * 0.18, h * 0.28),
+          Offset(w * 0.58, h * 0.66),
+          const [Color(0xFF4A7AA8), Color(0xFF23476E), Color(0xFF10243D)],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+    // Glowing cyan cave opening
+    final caveHole = Path()
+      ..moveTo(w * 0.25, h * 0.65)
+      ..quadraticBezierTo(w * 0.27, h * 0.39, w * 0.39, h * 0.38)
+      ..quadraticBezierTo(w * 0.50, h * 0.39, w * 0.51, h * 0.64)
+      ..close();
+    canvas.drawPath(
+      caveHole,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(w * 0.38, h * 0.54),
+          w * 0.18,
+          const [Color(0xFF72FFFF), Color(0xFF1586BA), Color(0xFF0A2847)],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+
+    // 3. Colorful branching 3D coral reef (right & center-right)
+    _drawCoralBranch(
+      canvas,
+      Offset(w * 0.67, h * 0.70),
+      1.05,
+      const Color(0xFFFF8852),
+      const Color(0xFFD93E0A),
+    );
+    _drawCoralBranch(
+      canvas,
+      Offset(w * 0.78, h * 0.72),
+      0.82,
+      const Color(0xFFFF8DAA),
+      const Color(0xFFC9446B),
+    );
+
+    // 4. Blue crystal formations & underwater rocks
+    _draw3DCrystal(
+      canvas,
+      base: Offset(w * 0.22, h * 0.74),
+      width: 9.0,
+      height: 18.0,
+      lit: const Color(0xFFD8FCFF),
+      mid: const Color(0xFF39C6F4),
+      shade: const Color(0xFF0E68A8),
+      tilt: -0.20,
+    );
+    _draw3DCrystal(
+      canvas,
+      base: Offset(w * 0.56, h * 0.75),
+      width: 7.5,
+      height: 14.5,
+      lit: const Color(0xFFD8FCFF),
+      mid: const Color(0xFF39C6F4),
+      shade: const Color(0xFF0E68A8),
+      tilt: 0.18,
+    );
+    _StageArtHelpers.drawRock(
+      canvas,
+      Offset(w * 0.42, h * 0.80),
+      5.0,
+      3.0,
+      lit: const Color(0xFF8FB4CE),
+      mid: const Color(0xFF4A7394),
+      shade: const Color(0xFF23425E),
+    );
+
+    // 5. Small tropical fish & bubbles
+    _drawFish(canvas, Offset(w * 0.62, h * 0.31), 1.0, facingRight: false);
+    _drawFish(canvas, Offset(w * 0.36, h * 0.22), 0.78, facingRight: true);
+
+    final bubblePaint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.75)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawCircle(Offset(w * 0.48, h * 0.25), 2.4, bubblePaint);
+    canvas.drawCircle(Offset(w * 0.53, h * 0.17), 1.7, bubblePaint);
+    canvas.drawCircle(Offset(w * 0.74, h * 0.26), 2.0, bubblePaint);
+  }
+
+  void _drawCoralBranch(
+    Canvas canvas,
+    Offset base,
+    double scale,
+    Color lit,
+    Color shade,
+  ) {
+    final paint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset(base.dx - 10 * scale, base.dy - 22 * scale),
+        Offset(base.dx + 10 * scale, base.dy),
+        [lit, shade],
+      )
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4.2 * scale
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawPath(
+      Path()
+        ..moveTo(base.dx, base.dy)
+        ..quadraticBezierTo(base.dx - 2 * scale, base.dy - 12 * scale, base.dx - 7 * scale, base.dy - 20 * scale),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(base.dx - 1 * scale, base.dy - 7 * scale)
+        ..quadraticBezierTo(base.dx + 4 * scale, base.dy - 14 * scale, base.dx + 2 * scale, base.dy - 23 * scale),
+      paint,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(base.dx, base.dy - 5 * scale)
+        ..quadraticBezierTo(base.dx + 8 * scale, base.dy - 10 * scale, base.dx + 10 * scale, base.dy - 17 * scale),
+      paint,
+    );
+  }
+
+  void _drawFish(
+    Canvas canvas,
+    Offset center,
+    double scale, {
+    required bool facingRight,
+  }) {
+    canvas.save();
+    canvas.translate(center.dx, center.dy);
+    if (!facingRight) canvas.scale(-1, 1);
+
+    // Tail fin
+    canvas.drawPath(
+      Path()
+        ..moveTo(-4.5 * scale, 0)
+        ..lineTo(-9.5 * scale, -4.0 * scale)
+        ..lineTo(-9.5 * scale, 4.0 * scale)
+        ..close(),
+      Paint()..color = const Color(0xFFFF9838),
+    );
+    // Body
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset.zero, width: 11.5 * scale, height: 7.0 * scale),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(0, -3.5 * scale),
+          Offset(0, 3.5 * scale),
+          const [Color(0xFFFFBA42), Color(0xFFFF550D)],
+        ),
+    );
+    // White stripe & eye
+    canvas.drawLine(
+      Offset(-0.8 * scale, -2.8 * scale),
+      Offset(-0.8 * scale, 2.8 * scale),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.9)
+        ..strokeWidth = 1.6 * scale,
+    );
+    canvas.drawCircle(
+      Offset(3.0 * scale, -0.7 * scale),
+      0.9 * scale,
+      Paint()..color = const Color(0xFF14243B),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _OceanDepths3DPainter oldDelegate) =>
+      oldDelegate.isSelected != isSelected;
+}
+
+/// Stage 9: Sky Islands – floating islands suspended above soft white clouds,
+/// green trees, connecting wooden bridge, and a miniature waterfall spilling
+/// into cloud mist.
+class _SkyIslands3DPainter extends CustomPainter {
+  final bool isSelected;
+
+  const _SkyIslands3DPainter({required this.isSelected});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // 1. Soft white clouds behind and beneath the islands
+    _drawFluffyCloud(canvas, Offset(w * 0.25, h * 0.34), 24.0, 0.85);
+    _drawFluffyCloud(canvas, Offset(w * 0.74, h * 0.22), 20.0, 0.82);
+
+    // 2. Back-right upper floating island
+    _drawFloatingIsland(canvas, center: Offset(w * 0.72, h * 0.41), rx: 16.5, depth: 12.0);
+    _drawRoundTree(canvas, Offset(w * 0.76, h * 0.37), 0.78);
+
+    // 3. Connecting arched bridge between main island and upper-right island
+    final bridge = Path()
+      ..moveTo(w * 0.48, h * 0.47)
+      ..quadraticBezierTo(w * 0.58, h * 0.41, w * 0.64, h * 0.42);
+    canvas.drawPath(
+      bridge,
+      Paint()
+        ..color = const Color(0xFF8C5633)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4.2
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawPath(
+      bridge,
+      Paint()
+        ..color = const Color(0xFFE0A775)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4
+        ..strokeCap = StrokeCap.round,
+    );
+
+    // 4. Main center-left floating island
+    _drawFloatingIsland(canvas, center: Offset(w * 0.36, h * 0.53), rx: 22.0, depth: 16.0);
+    _drawRoundTree(canvas, Offset(w * 0.26, h * 0.47), 1.05);
+    _drawRoundTree(canvas, Offset(w * 0.36, h * 0.45), 0.85);
+
+    // Miniature waterfall cascading off the front of the main island
+    final fallPath = Path()
+      ..moveTo(w * 0.41, h * 0.56)
+      ..quadraticBezierTo(w * 0.44, h * 0.68, w * 0.43, h * 0.81)
+      ..lineTo(w * 0.49, h * 0.81)
+      ..quadraticBezierTo(w * 0.49, h * 0.68, w * 0.46, h * 0.56)
+      ..close();
+    canvas.drawPath(
+      fallPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(w * 0.44, h * 0.56),
+          Offset(w * 0.45, h * 0.81),
+          const [Color(0xFFB3F2FF), Color(0xFF42B8EB)],
+        ),
+    );
+
+    // 5. Lower-right small floating island
+    _drawFloatingIsland(canvas, center: Offset(w * 0.74, h * 0.70), rx: 12.5, depth: 9.0);
+    _drawRoundTree(canvas, Offset(w * 0.74, h * 0.66), 0.65);
+
+    // 6. Soft foreground clouds beneath waterfall & islands
+    _drawFluffyCloud(canvas, Offset(w * 0.47, h * 0.82), 28.0, isSelected ? 0.96 : 0.92);
+    _drawFluffyCloud(canvas, Offset(w * 0.24, h * 0.79), 20.0, 0.88);
+  }
+
+  void _drawFloatingIsland(
+    Canvas canvas, {
+    required Offset center,
+    required double rx,
+    required double depth,
+  }) {
+    final ry = rx * 0.46;
+    // Tapered rocky earth cone underneath
+    final rockPath = Path()
+      ..moveTo(center.dx - rx * 0.95, center.dy + ry * 0.1)
+      ..quadraticBezierTo(center.dx - rx * 0.55, center.dy + depth * 0.9, center.dx, center.dy + depth)
+      ..quadraticBezierTo(center.dx + rx * 0.55, center.dy + depth * 0.9, center.dx + rx * 0.95, center.dy + ry * 0.1)
+      ..close();
+    canvas.drawPath(
+      rockPath,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(center.dx - rx, center.dy),
+          Offset(center.dx + rx, center.dy + depth),
+          const [Color(0xFFD1936A), Color(0xFF9C603B), Color(0xFF693D23)],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+
+    // Lush green grass cap
+    final capRect = Rect.fromCenter(center: center, width: rx * 2, height: ry * 2);
+    canvas.drawOval(
+      capRect.shift(const Offset(0, 1.8)),
+      Paint()..color = const Color(0xFF2B6F3E),
+    );
+    canvas.drawOval(
+      capRect,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          capRect.topLeft,
+          capRect.bottomRight,
+          const [Color(0xFF8BE296), Color(0xFF47A75E)],
+        ),
+    );
+  }
+
+  void _drawRoundTree(Canvas canvas, Offset base, double scale) {
+    canvas.drawLine(
+      base,
+      Offset(base.dx, base.dy - 6.0 * scale),
+      Paint()
+        ..color = const Color(0xFF854F2E)
+        ..strokeWidth = 2.6 * scale
+        ..strokeCap = StrokeCap.round,
+    );
+    final c = Offset(base.dx, base.dy - 9.0 * scale);
+    final r = 5.4 * scale;
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset(c.dx - r * 0.35, c.dy - r * 0.35),
+          r * 1.4,
+          const [Color(0xFF91E89C), Color(0xFF388E4E)],
+        ),
+    );
+  }
+
+  void _drawFluffyCloud(Canvas canvas, Offset center, double width, double alpha) {
+    final h = width * 0.36;
+    final paint = Paint()
+      ..shader = ui.Gradient.linear(
+        Offset(center.dx, center.dy - h),
+        Offset(center.dx, center.dy + h * 0.5),
+        [
+          Colors.white.withValues(alpha: alpha),
+          const Color(0xFFE3ECF7).withValues(alpha: alpha),
+        ],
+      );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: center, width: width, height: h),
+        Radius.circular(h * 0.5),
+      ),
+      paint,
+    );
+    canvas.drawCircle(Offset(center.dx - width * 0.18, center.dy - h * 0.32), width * 0.18, paint);
+    canvas.drawCircle(Offset(center.dx + width * 0.12, center.dy - h * 0.38), width * 0.21, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _SkyIslands3DPainter oldDelegate) =>
+      oldDelegate.isSelected != isSelected;
+}
+
+/// Stage 10: Crystal Temple – ancient isometric stepped temple with central
+/// stairs, glowing orange & golden crystals, floating crystal fragments, and
+/// glowing golden artifact at the apex.
+class _CrystalTemple3DPainter extends CustomPainter {
+  final bool isSelected;
+
+  const _CrystalTemple3DPainter({required this.isSelected});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width * 0.50;
+    final baseOrigin = Offset(cx, size.height * 0.44);
+    final uVec = Offset(size.width * 0.19, size.height * 0.11);
+    final vVec = Offset(-size.width * 0.19, size.height * 0.11);
+
+    Offset iso(double u, double v, [double z = 0.0]) {
+      return baseOrigin + uVec * u + vVec * v + Offset(0, -z);
+    }
+
+    // 1. Soft golden-orange ambient ground shadow
+    _StageArtHelpers.drawGroundShadow(
+      canvas,
+      Offset(cx, size.height * 0.84),
+      size.width * 0.40,
+      size.height * 0.13,
+      alpha: isSelected ? 0.34 : 0.22,
+      blur: 7.5,
+    );
+
+    // 2. Stepped isometric temple base plinth & grand central stairs
+    _drawIsoBox(
+      canvas,
+      iso: iso,
+      u0: -1.15,
+      u1: 1.15,
+      v0: -1.15,
+      v1: 1.15,
+      z0: -14.0,
+      z1: -6.0,
+      topColors: const [Color(0xFFFFFFFF), Color(0xFFF6DFCF)],
+      leftColor: const Color(0xFFF3DAC7),
+      rightColor: const Color(0xFFD5B199),
+    );
+
+    // Main temple sanctuary block
+    _drawIsoBox(
+      canvas,
+      iso: iso,
+      u0: -0.78,
+      u1: 0.78,
+      v0: -0.78,
+      v1: 0.78,
+      z0: -6.0,
+      z1: 9.0,
+      topColors: const [Color(0xFFFFFFFF), Color(0xFFF9E6D6)],
+      leftColor: const Color(0xFFF7E2D2),
+      rightColor: const Color(0xFFD9B49B),
+    );
+
+    // Stepped pyramid roof tier
+    _drawIsoBox(
+      canvas,
+      iso: iso,
+      u0: -0.52,
+      u1: 0.52,
+      v0: -0.52,
+      v1: 0.52,
+      z0: 9.0,
+      z1: 15.5,
+      topColors: const [Color(0xFFFFF8F0), Color(0xFFFFDFC4)],
+      leftColor: const Color(0xFFFFD8BA),
+      rightColor: const Color(0xFFE0B08E),
+    );
+
+    // 3. Grand central doorway & stairs on the left-front face (v = 0.78)
+    final doorTL = iso(-0.24, 0.79, 3.5);
+    final doorTR = iso(0.24, 0.79, 3.5);
+    final doorBR = iso(0.24, 0.79, -6.0);
+    final doorBL = iso(-0.24, 0.79, -6.0);
+    canvas.drawPath(
+      Path()
+        ..moveTo(doorTL.dx, doorTL.dy)
+        ..lineTo(doorTR.dx, doorTR.dy)
+        ..lineTo(doorBR.dx, doorBR.dy)
+        ..lineTo(doorBL.dx, doorBL.dy)
+        ..close(),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          doorTL,
+          doorBR,
+          const [Color(0xFFFFA95C), Color(0xFF6B2A12)],
+        ),
+    );
+    // Three stepped front stairs leading down from doorway
+    for (int s = 0; s < 3; s++) {
+      _drawIsoBox(
+        canvas,
+        iso: iso,
+        u0: -0.32,
+        u1: 0.32,
+        v0: 0.78 + s * 0.14,
+        v1: 0.94 + s * 0.14,
+        z0: -14.0,
+        z1: -6.5 - s * 2.4,
+        topColors: const [Color(0xFFFFFFFF), Color(0xFFFCE8D8)],
+        leftColor: const Color(0xFFF0D2BC),
+        rightColor: const Color(0xFFCFA88E),
+      );
+    }
+
+    // 4. Large glowing orange & golden crystals flanking the temple
+    _draw3DCrystal(
+      canvas,
+      base: iso(-0.95, 0.55, -6.0),
+      width: 9.5,
+      height: 20.0,
+      lit: const Color(0xFFFFF1A8),
+      mid: const Color(0xFFFF9838),
+      shade: const Color(0xFFD63B00),
+      tilt: -0.18,
+    );
+    _draw3DCrystal(
+      canvas,
+      base: iso(0.95, -0.45, -6.0),
+      width: 9.5,
+      height: 21.0,
+      lit: const Color(0xFFFFF5B8),
+      mid: const Color(0xFFFFB733),
+      shade: const Color(0xFFD96500),
+      tilt: 0.20,
+    );
+    _draw3DCrystal(
+      canvas,
+      base: iso(0.75, 0.92, -6.0),
+      width: 8.0,
+      height: 15.5,
+      lit: const Color(0xFFFFE5A3),
+      mid: const Color(0xFFFF6D28),
+      shade: const Color(0xFFB82B00),
+      tilt: 0.12,
+    );
+
+    // 5. Floating crystal fragments hovering around the temple
+    _draw3DCrystal(
+      canvas,
+      base: Offset(cx - size.width * 0.31, size.height * 0.34),
+      width: 5.5,
+      height: 10.5,
+      lit: const Color(0xFFFFF7B8),
+      mid: const Color(0xFFFFAE38),
+      shade: const Color(0xFFD94A00),
+      tilt: -0.25,
+    );
+    _draw3DCrystal(
+      canvas,
+      base: Offset(cx + size.width * 0.32, size.height * 0.36),
+      width: 5.5,
+      height: 10.5,
+      lit: const Color(0xFFFFF7B8),
+      mid: const Color(0xFFFF8833),
+      shade: const Color(0xFFCC3800),
+      tilt: 0.28,
+    );
+
+    // 6. Glowing golden treasure artifact hovering at the top
+    final apex = iso(0, 0, 23.5);
+    canvas.drawCircle(
+      apex,
+      11.5,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          apex,
+          11.5,
+          [
+            const Color(0xFFFFE57F).withValues(alpha: 0.55),
+            const Color(0xFFFF7A28).withValues(alpha: 0.18),
+            const Color(0xFFFF550D).withValues(alpha: 0.0),
+          ],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+    _draw3DCrystal(
+      canvas,
+      base: Offset(apex.dx, apex.dy + 6.5),
+      width: 9.0,
+      height: 13.5,
+      lit: const Color(0xFFFFFFFF),
+      mid: const Color(0xFFFFD54F),
+      shade: const Color(0xFFE66A00),
+    );
+  }
+
+  void _drawIsoBox(
+    Canvas canvas, {
+    required Offset Function(double u, double v, [double z]) iso,
+    required double u0,
+    required double u1,
+    required double v0,
+    required double v1,
+    required double z0,
+    required double z1,
+    required List<Color> topColors,
+    required Color leftColor,
+    required Color rightColor,
+  }) {
+    final bL = iso(u0, v1, z0);
+    final bB = iso(u1, v1, z0);
+    final bR = iso(u1, v0, z0);
+
+    final tT = iso(u0, v0, z1);
+    final tR = iso(u1, v0, z1);
+    final tB = iso(u1, v1, z1);
+    final tL = iso(u0, v1, z1);
+
+    // Left-front face
+    canvas.drawPath(
+      Path()
+        ..moveTo(tL.dx, tL.dy)
+        ..lineTo(tB.dx, tB.dy)
+        ..lineTo(bB.dx, bB.dy)
+        ..lineTo(bL.dx, bL.dy)
+        ..close(),
+      Paint()..color = leftColor,
+    );
+    // Right-front face
+    canvas.drawPath(
+      Path()
+        ..moveTo(tB.dx, tB.dy)
+        ..lineTo(tR.dx, tR.dy)
+        ..lineTo(bR.dx, bR.dy)
+        ..lineTo(bB.dx, bB.dy)
+        ..close(),
+      Paint()..color = rightColor,
+    );
+    // Top face
+    final topPath = Path()
+      ..moveTo(tT.dx, tT.dy)
+      ..lineTo(tR.dx, tR.dy)
+      ..lineTo(tB.dx, tB.dy)
+      ..lineTo(tL.dx, tL.dy)
+      ..close();
+    canvas.drawPath(
+      topPath,
+      Paint()..shader = ui.Gradient.linear(tT, tB, topColors),
+    );
+    canvas.drawPath(
+      topPath,
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.65)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.7,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _CrystalTemple3DPainter oldDelegate) =>
       oldDelegate.isSelected != isSelected;
 }
