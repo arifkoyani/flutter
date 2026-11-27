@@ -41,7 +41,7 @@ void main() {
     expect(find.byType(GamePlayScreen), findsOneWidget);
     expect(find.text('Stage 1: First Steps'), findsOneWidget);
     expect(find.byKey(const ValueKey('gameplay_background')), findsOneWidget);
-    expect(find.text('Tap to Rotate'), findsOneWidget);
+    expect(find.text('Tap to Rotate'), findsNothing);
     expect(find.text('LIVES'), findsOneWidget);
     expect(find.byIcon(Icons.favorite_rounded), findsNWidgets(3));
     expect(find.textContaining('ARROWS LEFT'), findsNothing);
@@ -286,7 +286,7 @@ void main() {
 
     expect(find.text('Stage 1: First Steps'), findsOneWidget);
     expect(find.byKey(const ValueKey('gameplay_background')), findsOneWidget);
-    expect(find.text('Tap to Rotate'), findsOneWidget);
+    expect(find.text('Tap to Rotate'), findsNothing);
     expect(find.text('LIVES'), findsOneWidget);
     expect(find.byKey(const ValueKey('level_countdown_timer')), findsOneWidget);
     expect(find.text('TIME'), findsOneWidget);
@@ -333,8 +333,8 @@ void main() {
     final board = tester.widget<PuzzleBoard>(boardFinder);
     final center = tester.getCenter(boardFinder);
 
-    // Tap first clear arrow (Arrow 1 on front face)
-    await tester.tapAt(center + const Offset(-101, 4));
+    // Tap first clear arrow (Arrow 1 on front face, at default 0.65x zoom)
+    await tester.tapAt(center + const Offset(-66, 3));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 80));
 
@@ -343,8 +343,8 @@ void main() {
     expect(exitingAfterFirst.length, 1);
     expect(find.text('23'), findsOneWidget);
 
-    // Immediately tap a second clear arrow (Arrow 102 on right face) while the first is still mid-flight
-    await tester.tapAt(center + const Offset(87, 48));
+    // Immediately tap a second clear arrow (Arrow 102 on right face, at 0.65x zoom)
+    await tester.tapAt(center + const Offset(57, 31));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 80));
 
@@ -374,7 +374,7 @@ void main() {
     final center = tester.getCenter(boardFinder);
 
     // Press down on Arrow 1 and hold for 110ms -> scales to 1.05x without exiting yet
-    final press = await tester.startGesture(center + const Offset(-101, 4));
+    final press = await tester.startGesture(center + const Offset(-66, 3));
     await tester.pump(const Duration(milliseconds: 110));
 
     final arrow1 = board.arrows.firstWhere((a) => a.id == 1);
@@ -391,7 +391,7 @@ void main() {
     expect(arrow1.exitDistance, greaterThan(0.0));
   });
 
-  testWidgets('Tap to Rotate bar appears for 10 seconds with rotate icon then disappears',
+  testWidgets('4-way rotate tutorial (0-30%), slow rotate icon below cube (30-50%), and pinch zoom (50%+) never overlap',
       (WidgetTester tester) async {
     await LevelsData.load();
 
@@ -401,17 +401,45 @@ void main() {
       ),
     );
 
-    expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsOneWidget);
-    expect(find.text('Tap to Rotate'), findsOneWidget);
-    expect(find.byIcon(Icons.rotate_right_rounded), findsOneWidget);
-
-    // Still visible before 10 seconds elapse
-    await tester.pump(const Duration(seconds: 5));
-    expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsOneWidget);
-
-    // Disappears after 10 seconds + fade-out
-    await tester.pump(const Duration(seconds: 5));
-    await tester.pump(const Duration(milliseconds: 450));
+    // 0% to 30% (0s..8s): 4-way Rotate Tutorial + "Shift any side" text only
+    expect(find.byKey(const ValueKey('cube_rotate_tutorial')), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_up_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_down_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_left_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.keyboard_arrow_right_rounded), findsOneWidget);
+    expect(find.text('Shift any side'), findsOneWidget);
     expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsNothing);
+    expect(find.text('rotate any angle'), findsNothing);
+    expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsNothing);
+    expect(find.text('Tap to Rotate'), findsNothing);
+
+    // At 9s (30% elapsed): Rotate Tutorial ends, slow rotate icon + "rotate any angle" appears below cube center
+    await tester.pump(const Duration(seconds: 9));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('cube_rotate_tutorial')), findsNothing);
+    expect(find.text('Shift any side'), findsNothing);
+    expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsOneWidget);
+    expect(find.byIcon(Icons.rotate_right_rounded), findsOneWidget);
+    expect(find.text('rotate any angle'), findsOneWidget);
+    expect(find.text('Tap to Rotate'), findsNothing);
+    expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsNothing);
+    final boardCenterY = tester.getCenter(find.byType(PuzzleBoard)).dy;
+    final rotateIconY = tester.getCenter(find.byKey(const ValueKey('tap_to_rotate_hint_bar'))).dy;
+    expect(rotateIconY, greaterThan(boardCenterY + 60));
+
+    // At 15s (50% elapsed): Rotate icon hides and Two-thumb Pinch Zoom + "zoom in & out" appears
+    await tester.pump(const Duration(seconds: 6));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('tap_to_rotate_hint_bar')), findsNothing);
+    expect(find.text('rotate any angle'), findsNothing);
+    expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsOneWidget);
+    expect(find.text('zoom in & out'), findsOneWidget);
+    expect(find.text('Pinch to Zoom'), findsNothing);
+
+    // At 23s (> 75% elapsed): Pinch tutorial & label fade away cleanly
+    await tester.pump(const Duration(seconds: 8));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byKey(const ValueKey('cube_zoom_tutorial')), findsNothing);
+    expect(find.text('zoom in & out'), findsNothing);
   });
 }

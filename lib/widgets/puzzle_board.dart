@@ -44,8 +44,9 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     with TickerProviderStateMixin {
   static const double _restYaw = -0.72;
   static const double _restPitch = 0.50;
-  static const double _minZoom = 0.65;
-  static const double _maxZoom = 2.0;
+  static const double _defaultZoomOffset = -0.35;
+  static const double _minZoomOffset = -0.50;
+  static const double _maxZoomOffset = 1.0;
   // 20% faster than the original 700ms exit duration (700 / 1.2 ≈ 583ms).
   static const double _exitDurationSeconds = 0.700 / 1.20;
 
@@ -67,7 +68,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), _restYaw));
   double _yawVelocity = 0;
   double _pitchVelocity = 0;
-  double _zoom = 1.0;
+  double _zoomOffset = _defaultZoomOffset;
+  double get _zoom => 1.0 + _zoomOffset;
   late final Ticker _spinTicker;
   Duration? _spinLast;
 
@@ -190,7 +192,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
           .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), _restYaw));
       _yawVelocity = 0;
       _pitchVelocity = 0;
-      _zoom = 1.0;
+      _zoomOffset = _defaultZoomOffset;
       _pointers.clear();
       _lastPinchDistance = null;
       _lastPinchCenter = null;
@@ -262,7 +264,8 @@ class _PuzzleBoardState extends State<PuzzleBoard>
         if (signal is PointerScrollEvent && mounted) {
           final factor = math.exp(-signal.scrollDelta.dy * 0.0015);
           setState(() {
-            _zoom = (_zoom * factor).clamp(_minZoom, _maxZoom);
+            _zoomOffset =
+                (_zoom * factor - 1.0).clamp(_minZoomOffset, _maxZoomOffset);
           });
         }
       });
@@ -344,12 +347,12 @@ class _PuzzleBoardState extends State<PuzzleBoard>
       final now = DateTime.now();
       final dt = now.difference(_lastMoveTime).inMicroseconds / 1e6;
 
-      var newZoom = _zoom;
+      var newZoomOffset = _zoomOffset;
       if (_lastPinchDistance != null &&
           _lastPinchDistance! > 1.0 &&
           pinch.distance > 1.0) {
-        newZoom = (_zoom * (pinch.distance / _lastPinchDistance!))
-            .clamp(_minZoom, _maxZoom);
+        newZoomOffset = (_zoom * (pinch.distance / _lastPinchDistance!) - 1.0)
+            .clamp(_minZoomOffset, _maxZoomOffset);
       }
 
       final centerDelta = _lastPinchCenter != null
@@ -360,7 +363,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
           : 0.0;
 
       setState(() {
-        _zoom = newZoom;
+        _zoomOffset = newZoomOffset;
         if (centerDelta != Offset.zero || rollDelta.abs() > 0.0005) {
           _spinBy(
             centerDelta.dx * 0.012,

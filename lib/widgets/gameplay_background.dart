@@ -217,158 +217,362 @@ class _GameplayBackgroundPainter extends CustomPainter {
   bool shouldRepaint(covariant _GameplayBackgroundPainter oldDelegate) => false;
 }
 
-/// Floating pill-shaped bottom instruction bar that demonstrates rotation
-/// for 10 seconds at the start of each stage and then fades out.
+enum _HintSlotPhase { shiftSide, rotateAngle, zoomInOut, none }
+
+/// Subtle monochrome hint slot positioned below the cube that displays:
+/// - `0%–30%`: `"Shift any side"` alongside the 4-way directional tutorial
+/// - `30%–50%` (up to 10s): slow rotate icon + `"rotate any angle"`
+/// - `50%–75%`: `"zoom in & out"` alongside the two-thumb pinch tutorial
 class TapToRotateHintBar extends StatefulWidget {
-  const TapToRotateHintBar({super.key});
+  final int totalDurationSeconds;
+  final int remainingSeconds;
+  final bool isActive;
+
+  const TapToRotateHintBar({
+    super.key,
+    required this.totalDurationSeconds,
+    required this.remainingSeconds,
+    required this.isActive,
+  });
 
   @override
   State<TapToRotateHintBar> createState() => _TapToRotateHintBarState();
 }
 
 class _TapToRotateHintBarState extends State<TapToRotateHintBar> {
-  static const Color primaryOrange = Color(0xFFFF550D);
+  static const TextStyle _hintTextStyle = TextStyle(
+    color: Color(0xFF6B7280),
+    fontSize: 12.5,
+    fontWeight: FontWeight.w600,
+    letterSpacing: 0.2,
+  );
 
   Timer? _rotateTimer;
-  Timer? _pulseResetTimer;
-  Timer? _hideTimer;
-  Timer? _removeTimer;
-
   double _turns = 0.0;
-  bool _isPulsed = false;
-  bool _visible = true;
-  bool _removed = false;
+
+  _HintSlotPhase get _phase {
+    if (!widget.isActive || widget.totalDurationSeconds <= 0) {
+      return _HintSlotPhase.none;
+    }
+    final elapsed = (widget.totalDurationSeconds - widget.remainingSeconds)
+        .clamp(0, widget.totalDurationSeconds);
+    final progress = elapsed / widget.totalDurationSeconds;
+    if (progress < 0.30) {
+      return _HintSlotPhase.shiftSide;
+    }
+    if (progress < 0.50) {
+      final startSec = (widget.totalDurationSeconds * 0.30).ceil();
+      final elapsedSinceStart = elapsed - startSec;
+      if (elapsedSinceStart >= 0 && elapsedSinceStart < 10) {
+        return _HintSlotPhase.rotateAngle;
+      }
+      return _HintSlotPhase.none;
+    }
+    if (progress < 0.75) {
+      return _HintSlotPhase.zoomInOut;
+    }
+    return _HintSlotPhase.none;
+  }
 
   @override
   void initState() {
     super.initState();
+    _syncRotateTimer();
+  }
 
-    // Rotate the icon smoothly every 1.4s while visible.
-    _rotateTimer = Timer.periodic(const Duration(milliseconds: 1400), (_) {
-      if (!mounted || !_visible) return;
-      setState(() {
-        _turns += 1.0;
-        _isPulsed = true;
-      });
-      _pulseResetTimer?.cancel();
-      _pulseResetTimer = Timer(const Duration(milliseconds: 520), () {
-        if (mounted) {
-          setState(() => _isPulsed = false);
+  @override
+  void didUpdateWidget(covariant TapToRotateHintBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncRotateTimer();
+  }
+
+  void _syncRotateTimer() {
+    final shouldSpin = _phase == _HintSlotPhase.rotateAngle;
+    if (shouldSpin && _rotateTimer == null) {
+      _rotateTimer = Timer.periodic(const Duration(milliseconds: 2200), (_) {
+        if (mounted && _phase == _HintSlotPhase.rotateAngle) {
+          setState(() => _turns += 1.0);
         }
       });
-    });
-
-    // Show for 10 seconds, then fade out and disappear.
-    _hideTimer = Timer(const Duration(seconds: 10), () {
-      if (!mounted) return;
+    } else if (!shouldSpin && _rotateTimer != null) {
       _rotateTimer?.cancel();
-      _pulseResetTimer?.cancel();
-      setState(() {
-        _visible = false;
-        _isPulsed = false;
-      });
-      _removeTimer = Timer(const Duration(milliseconds: 420), () {
-        if (mounted) {
-          setState(() => _removed = true);
-        }
-      });
-    });
+      _rotateTimer = null;
+    }
   }
 
   @override
   void dispose() {
     _rotateTimer?.cancel();
-    _pulseResetTimer?.cancel();
-    _hideTimer?.cancel();
-    _removeTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_removed) {
-      return const SizedBox.shrink();
-    }
+    final phase = _phase;
 
-    return AnimatedOpacity(
-      opacity: _visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 380),
-      curve: Curves.easeOut,
-      child: AnimatedSlide(
-        offset: _visible ? Offset.zero : const Offset(0.0, 0.25),
-        duration: const Duration(milliseconds: 380),
-        curve: Curves.easeOut,
-        child: Center(
-          child: Container(
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: switch (phase) {
+        _HintSlotPhase.shiftSide => const Text(
+            'Shift any side',
+            key: ValueKey('hint_shift_any_side'),
+            style: _hintTextStyle,
+          ),
+        _HintSlotPhase.rotateAngle => Row(
             key: const ValueKey('tap_to_rotate_hint_bar'),
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.white.withValues(alpha: 0.90),
-                  const Color(0xFFFFF4EC).withValues(alpha: 0.88),
-                ],
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AnimatedRotation(
+                turns: _turns,
+                duration: const Duration(milliseconds: 1600),
+                curve: Curves.easeInOut,
+                child: const Icon(
+                  Icons.rotate_right_rounded,
+                  size: 22,
+                  color: Color(0xFF6B7280),
+                ),
               ),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(
-                color: const Color(0xFFFFDFCC),
-                width: 1.2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: primaryOrange.withValues(alpha: 0.10),
-                  blurRadius: 16,
-                  offset: const Offset(0, 6),
-                ),
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.04),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedScale(
-                  scale: _isPulsed ? 1.14 : 1.0,
-                  duration: const Duration(milliseconds: 420),
-                  curve: Curves.easeInOut,
-                  child: Container(
-                    width: 26,
-                    height: 26,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: primaryOrange.withValues(
-                        alpha: _isPulsed ? 0.20 : 0.11,
-                      ),
-                    ),
-                    child: AnimatedRotation(
-                      turns: _turns,
-                      duration: const Duration(milliseconds: 700),
-                      curve: Curves.easeInOutCubic,
-                      child: const Icon(
-                        Icons.rotate_right_rounded,
-                        size: 17,
-                        color: primaryOrange,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 9),
-                const Text(
-                  'Tap to Rotate',
-                  style: TextStyle(
-                    color: Color(0xFF2B2D33),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-              ],
+              const SizedBox(width: 6),
+              const Text('rotate any angle', style: _hintTextStyle),
+            ],
+          ),
+        _HintSlotPhase.zoomInOut => const Text(
+            'zoom in & out',
+            key: ValueKey('hint_zoom_in_out'),
+            style: _hintTextStyle,
+          ),
+        _HintSlotPhase.none => const SizedBox.shrink(
+            key: ValueKey('tap_to_rotate_hint_hidden'),
+          ),
+      },
+    );
+  }
+}
+
+enum _CubeTutorialPhase { none, rotate, pinchZoom }
+
+/// Percentage-timed non-blocking tutorial overlay positioned around the 3D cube:
+/// - 0% to 30% of level duration: directional rotate arrows on all 4 sides
+/// - 50% to 75% of level duration: two-thumb pinch zoom-in / zoom-out cue
+class CubeTutorialOverlay extends StatefulWidget {
+  final int totalDurationSeconds;
+  final int remainingSeconds;
+  final bool isActive;
+
+  const CubeTutorialOverlay({
+    super.key,
+    required this.totalDurationSeconds,
+    required this.remainingSeconds,
+    required this.isActive,
+  });
+
+  @override
+  State<CubeTutorialOverlay> createState() => _CubeTutorialOverlayState();
+}
+
+class _CubeTutorialOverlayState extends State<CubeTutorialOverlay> {
+  static const Color primaryOrange = Color(0xFFFF550D);
+
+  Timer? _motionTimer;
+  bool _motionForward = false;
+
+  _CubeTutorialPhase get _phase {
+    if (!widget.isActive || widget.totalDurationSeconds <= 0) {
+      return _CubeTutorialPhase.none;
+    }
+    final elapsed = (widget.totalDurationSeconds - widget.remainingSeconds)
+        .clamp(0, widget.totalDurationSeconds);
+    final progress = elapsed / widget.totalDurationSeconds;
+    if (progress < 0.30) {
+      return _CubeTutorialPhase.rotate;
+    }
+    if (progress >= 0.50 && progress < 0.75) {
+      return _CubeTutorialPhase.pinchZoom;
+    }
+    return _CubeTutorialPhase.none;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _syncMotionTimer();
+  }
+
+  @override
+  void didUpdateWidget(covariant CubeTutorialOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncMotionTimer();
+  }
+
+  void _syncMotionTimer() {
+    final shouldRun = _phase != _CubeTutorialPhase.none;
+    if (shouldRun && _motionTimer == null) {
+      _motionTimer = Timer.periodic(const Duration(milliseconds: 900), (_) {
+        if (mounted) {
+          setState(() => _motionForward = !_motionForward);
+        }
+      });
+    } else if (!shouldRun && _motionTimer != null) {
+      _motionTimer?.cancel();
+      _motionTimer = null;
+      _motionForward = false;
+    }
+  }
+
+  @override
+  void dispose() {
+    _motionTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final phase = _phase;
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 350),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      child: switch (phase) {
+        _CubeTutorialPhase.rotate => _buildRotateTutorial(),
+        _CubeTutorialPhase.pinchZoom => _buildPinchZoomTutorial(),
+        _CubeTutorialPhase.none => const SizedBox.shrink(
+            key: ValueKey('cube_tutorial_hidden'),
+          ),
+      },
+    );
+  }
+
+  Widget _buildRotateTutorial() {
+    return Stack(
+      key: const ValueKey('cube_rotate_tutorial'),
+      children: [
+        // Top vertical rotate icon close to the cube
+        Align(
+          alignment: const Alignment(0.0, -0.56),
+          child: AnimatedSlide(
+            offset: _motionForward ? const Offset(0, -0.18) : Offset.zero,
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeInOut,
+            child: _buildTutorialBadge(Icons.keyboard_arrow_up_rounded),
+          ),
+        ),
+        // Bottom vertical rotate icon close to the cube
+        Align(
+          alignment: const Alignment(0.0, 0.56),
+          child: AnimatedSlide(
+            offset: _motionForward ? const Offset(0, 0.18) : Offset.zero,
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeInOut,
+            child: _buildTutorialBadge(Icons.keyboard_arrow_down_rounded),
+          ),
+        ),
+        // Left horizontal rotate icon close to the cube
+        Align(
+          alignment: const Alignment(-0.96, 0.0),
+          child: AnimatedSlide(
+            offset: _motionForward ? const Offset(-0.18, 0) : Offset.zero,
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeInOut,
+            child: _buildTutorialBadge(Icons.keyboard_arrow_left_rounded),
+          ),
+        ),
+        // Right horizontal rotate icon close to the cube
+        Align(
+          alignment: const Alignment(0.96, 0.0),
+          child: AnimatedSlide(
+            offset: _motionForward ? const Offset(0.18, 0) : Offset.zero,
+            duration: const Duration(milliseconds: 520),
+            curve: Curves.easeInOut,
+            child: _buildTutorialBadge(Icons.keyboard_arrow_right_rounded),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPinchZoomTutorial() {
+    return Stack(
+      key: const ValueKey('cube_zoom_tutorial'),
+      children: [
+        // Upper-left thumb sliding diagonally outward/inward
+        Align(
+          alignment: const Alignment(-0.42, -0.42),
+          child: AnimatedSlide(
+            offset: _motionForward
+                ? const Offset(-0.26, -0.26)
+                : const Offset(0.14, 0.14),
+            duration: const Duration(milliseconds: 560),
+            curve: Curves.easeInOutCubic,
+            child: _buildThumbChip(
+              icon: Icons.touch_app_rounded,
+              quarterTurns: -1,
             ),
           ),
         ),
+        // Lower-right thumb sliding opposite to demonstrate two-thumb pinch
+        Align(
+          alignment: const Alignment(0.42, 0.42),
+          child: AnimatedSlide(
+            offset: _motionForward
+                ? const Offset(0.26, 0.26)
+                : const Offset(-0.14, -0.14),
+            duration: const Duration(milliseconds: 560),
+            curve: Curves.easeInOutCubic,
+            child: _buildThumbChip(
+              icon: Icons.touch_app_rounded,
+              quarterTurns: 0,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTutorialBadge(IconData icon) {
+    return Container(
+      width: 30,
+      height: 30,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: 0.88),
+        border: Border.all(color: const Color(0xFFFFD8C2), width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: primaryOrange.withValues(alpha: 0.14),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(icon, size: 20, color: primaryOrange),
+    );
+  }
+
+  Widget _buildThumbChip({
+    required IconData icon,
+    required int quarterTurns,
+  }) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: 0.92),
+        border: Border.all(color: primaryOrange.withValues(alpha: 0.45), width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: primaryOrange.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: RotatedBox(
+        quarterTurns: quarterTurns,
+        child: Icon(icon, size: 19, color: primaryOrange),
       ),
     );
   }

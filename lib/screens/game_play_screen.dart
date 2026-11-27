@@ -343,22 +343,6 @@ class _GamePlayScreenState extends State<GamePlayScreen>
         ),
       ),
         ),
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: SafeArea(
-            top: false,
-            child: IgnorePointer(
-              child: Padding(
-                padding: const EdgeInsets.only(bottom: 14.0),
-                child: TapToRotateHintBar(
-                  key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
-                ),
-              ),
-            ),
-          ),
-        ),
         Positioned.fill(
           child: IgnorePointer(
             child: AnimatedBuilder(
@@ -568,14 +552,41 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   }
 
   Widget _buildPuzzleBoard() {
-    return PuzzleBoard(
-      key: ValueKey(_level.id),
-      levelId: _level.id,
-      gridCols: _level.gridCols,
-      gridRows: _level.gridRows,
-      arrows: _arrows,
-      walls: _level.id == 1 ? const [] : _level.walls,
-      onArrowTap: _onArrowTapped,
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        PuzzleBoard(
+          key: ValueKey(_level.id),
+          levelId: _level.id,
+          gridCols: _level.gridCols,
+          gridRows: _level.gridRows,
+          arrows: _arrows,
+          walls: _level.id == 1 ? const [] : _level.walls,
+          onArrowTap: _onArrowTapped,
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CubeTutorialOverlay(
+              totalDurationSeconds: _level.durationSeconds,
+              remainingSeconds: _remainingSeconds,
+              isActive: !_isGameOver && !_isVictory,
+            ),
+          ),
+        ),
+        Positioned.fill(
+          child: IgnorePointer(
+            child: Align(
+              alignment: const Alignment(0.0, 0.80),
+              child: TapToRotateHintBar(
+                key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
+                totalDurationSeconds: _level.durationSeconds,
+                remainingSeconds: _remainingSeconds,
+                isActive: !_isGameOver && !_isVictory,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
