@@ -64,7 +64,14 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
 
   int _selectedLevelId = 1;
   final Map<int, Offset> _cardOffsets = {};
+  final GlobalKey _contentKey = GlobalKey();
   late final TransformationController _transformationController;
+  bool _hasInitializedTransform = false;
+  bool _isAdjustingTransform = false;
+  Size _viewportSize = Size.zero;
+  EdgeInsets _mediaPadding = EdgeInsets.zero;
+  double _lastScale = 0.65;
+  double _lastTy = 0.0;
 
   late final AnimationController _floatController;
   late final Animation<double> _zLiftAnimation;
@@ -73,6 +80,7 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
   void initState() {
     super.initState();
     _transformationController = TransformationController();
+    _transformationController.addListener(_onTransformationChanged);
     GameDatabase.instance.addListener(_onProgressChanged);
     GameDatabase.instance.init();
     if (!LevelsData.isLoaded) {
@@ -96,8 +104,102 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
   void dispose() {
     GameDatabase.instance.removeListener(_onProgressChanged);
     _floatController.dispose();
+    _transformationController.removeListener(_onTransformationChanged);
     _transformationController.dispose();
     super.dispose();
+  }
+
+  static const double _topBuffer = 320.0;
+  static const double _bottomBuffer = 320.0;
+  static const double _bottomMarkerGap = 24.0;
+  static const double _bottomMarkerHeight = 40.0; // ~28px pill + 12px bottom pad
+
+  double _canvasWidthFor(double viewportWidth) => viewportWidth * 6.0;
+
+  double _sideInsetFor(double viewportWidth) => viewportWidth * 2.5;
+
+  double _mapTopY(EdgeInsets mediaPadding) =>
+      _topBuffer + mediaPadding.top + 18.0;
+
+  double _pathHeight() {
+    final count = _levels.isEmpty ? 1 : _levels.length;
+    return (count - 1) * 246.0 + 198.0 + 16.0;
+  }
+
+  double _visualBottomY(EdgeInsets mediaPadding) =>
+      _mapTopY(mediaPadding) +
+      _pathHeight() +
+      _bottomMarkerGap +
+      _bottomMarkerHeight;
+
+  double _canvasHeight(EdgeInsets mediaPadding) =>
+      _visualBottomY(mediaPadding) + _bottomBuffer;
+
+  void _onTransformationChanged() {
+    if (_isAdjustingTransform || _viewportSize == Size.zero) return;
+    _normalizeTransform();
+  }
+
+  void _normalizeTransform({bool forceBottomAnchor = false}) {
+    if (_viewportSize == Size.zero) return;
+
+    final m = _transformationController.value;
+    final rawScale = m.getMaxScaleOnAxis();
+    final scale = rawScale.clamp(0.20, 0.65).toDouble();
+    final rawTx = m.storage[12];
+    final rawTy = m.storage[13];
+
+    final canvasWidth = _canvasWidthFor(_viewportSize.width);
+    final visualBottomY = _visualBottomY(_mediaPadding);
+    final mapTopY = _mapTopY(_mediaPadding);
+    final anchorScreenY = _viewportSize.height - _mediaPadding.bottom - 98.0;
+    final minTy = anchorScreenY - scale * visualBottomY;
+    final maxTy = math.max(minTy, (_mediaPadding.top + 8.0) - scale * mapTopY);
+    final centeredTx = (_viewportSize.width - scale * canvasWidth) / 2.0;
+
+    final double targetTy;
+    if (forceBottomAnchor) {
+      targetTy = minTy;
+    } else if ((scale - _lastScale).abs() > 1e-4) {
+      // Zoom relative to Stage 1's bottom anchor just above the CTA bar
+      final oldMinTy = anchorScreenY - _lastScale * visualBottomY;
+      final oldOffset = math.max(0.0, _lastTy - oldMinTy);
+      final newOffset = oldOffset * (scale / _lastScale);
+      targetTy = (minTy + newOffset).clamp(minTy, maxTy).toDouble();
+    } else {
+      targetTy = rawTy.clamp(minTy, maxTy).toDouble();
+    }
+
+    _lastScale = scale;
+    _lastTy = targetTy;
+
+    final needsUpdate = (rawTx - centeredTx).abs() > 0.01 ||
+        (rawTy - targetTy).abs() > 0.01 ||
+        (rawScale - scale).abs() > 1e-4;
+    if (!needsUpdate) return;
+
+    _isAdjustingTransform = true;
+    _transformationController.value = Matrix4.identity()
+      ..translateByDouble(centeredTx, targetTy, 0.0, 1.0)
+      ..scaleByDouble(scale, scale, scale, 1.0);
+    _isAdjustingTransform = false;
+  }
+
+  /// Horizontal drag bounds in canvas space so each card stays >= 50% inside
+  /// the left and right screen edges at the current zoom scale.
+  (double, double) _horizontalCardOffsetBounds(
+    double baseDx,
+    double scale,
+    double tx,
+  ) {
+    const cardWidth = 178.0;
+    final viewportWidth = _viewportSize.width;
+    if (viewportWidth <= 0 || scale <= 0) {
+      return (-cardWidth * 0.5, cardWidth * 0.5);
+    }
+    final minDx = (-tx / scale) - baseDx - cardWidth * 0.5;
+    final maxDx = ((viewportWidth - tx) / scale) - baseDx - cardWidth * 0.5;
+    return (minDx, maxDx);
   }
 
   void _onProgressChanged() {
@@ -127,112 +229,108 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
           Positioned.fill(
             child: LayoutBuilder(
               builder: (context, constraints) {
+                _viewportSize = Size(constraints.maxWidth, constraints.maxHeight);
+                _mediaPadding = mediaPadding;
+                final canvasWidth = _canvasWidthFor(constraints.maxWidth);
+                final sideInset = _sideInsetFor(constraints.maxWidth);
+                final mapTopY = _mapTopY(mediaPadding);
+                final pathTopY = mapTopY;
+                final startMarkerTopY =
+                    pathTopY + _pathHeight() + _bottomMarkerGap;
+                final canvasHeight = _canvasHeight(mediaPadding);
+
+                if (!_hasInitializedTransform && constraints.maxWidth > 0) {
+                  _hasInitializedTransform = true;
+                  const initialScale = 0.65;
+                  final visualBottomY = _visualBottomY(mediaPadding);
+                  final anchorScreenY =
+                      constraints.maxHeight - mediaPadding.bottom - 98.0;
+                  final initialTx =
+                      (constraints.maxWidth - initialScale * canvasWidth) / 2.0;
+                  final initialTy =
+                      anchorScreenY - initialScale * visualBottomY;
+                  _lastScale = initialScale;
+                  _lastTy = initialTy;
+                  _isAdjustingTransform = true;
+                  _transformationController.value = Matrix4.identity()
+                    ..translateByDouble(initialTx, initialTy, 0.0, 1.0)
+                    ..scaleByDouble(
+                      initialScale,
+                      initialScale,
+                      initialScale,
+                      1.0,
+                    );
+                  _isAdjustingTransform = false;
+                }
+
                 return InteractiveViewer(
                   transformationController: _transformationController,
                   constrained: false,
                   clipBehavior: Clip.none,
-                  boundaryMargin: const EdgeInsets.symmetric(
-                    horizontal: 140.0,
-                    vertical: 220.0,
+                  boundaryMargin: EdgeInsets.symmetric(
+                    horizontal: math.max(360.0, constraints.maxWidth * 2.2),
+                    vertical: math.max(640.0, constraints.maxHeight * 2.2),
                   ),
-                  minScale: 0.65,
-                  maxScale: 2.2,
+                  minScale: 0.20,
+                  maxScale: 0.65,
                   panEnabled: true,
                   scaleEnabled: true,
                   child: SizedBox(
-                    width: constraints.maxWidth,
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                        left: 20.0,
-                        right: 20.0,
-                        top: mediaPadding.top + 18.0,
-                        bottom: mediaPadding.bottom + 104.0,
-                      ),
-                      child: Column(
-                        children: [
-                          // Summit Peak Badge (Top of the Mountain)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            decoration: BoxDecoration(
-                              color: primaryOrange.withValues(alpha: 0.08),
-                              borderRadius: BorderRadius.circular(24),
-                              border: Border.all(
-                                color: primaryOrange.withValues(alpha: 0.25),
-                                width: 1.2,
+                    key: _contentKey,
+                    width: canvasWidth,
+                    height: canvasHeight,
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        // Winding Upward Adventure Path with draggable cards & flexible thread
+                        Positioned.fill(
+                          child: _buildWindingLevelPath(
+                            contentWidth: constraints.maxWidth - 40.0,
+                            horizontalInset: sideInset + 20.0,
+                            pathTopY: pathTopY,
+                          ),
+                        ),
+
+                        // Bottom Start Marker
+                        Positioned(
+                          left: sideInset,
+                          width: constraints.maxWidth,
+                          top: startMarkerTopY,
+                          child: Center(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 6,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: primaryOrange.withValues(alpha: 0.1),
-                                  blurRadius: 16,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.flag_rounded,
-                                  size: 16,
-                                  color: primaryOrange,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'THE SUMMIT • STAGE ${_levels.last.id}',
-                                  style: const TextStyle(
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF7F7F7),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(color: const Color(0xFFE5E5E5)),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.navigation_rounded,
+                                    size: 14,
                                     color: primaryOrange,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'STARTING BASE • STAGE ${_levels.first.id}',
+                                    style: TextStyle(
+                                      color: Colors.black.withValues(alpha: 0.55),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.8,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(height: 24),
-
-                          // Winding Upward Adventure Path with draggable cards & flexible thread
-                          _buildWindingLevelPath(constraints.maxWidth - 40.0),
-
-                          const SizedBox(height: 24),
-
-                          // Bottom Start Marker
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF7F7F7),
-                              borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: const Color(0xFFE5E5E5)),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.navigation_rounded,
-                                  size: 14,
-                                  color: primaryOrange,
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'STARTING BASE • STAGE ${_levels.first.id}',
-                                  style: TextStyle(
-                                    color: Colors.black.withValues(alpha: 0.55),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 0.8,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -268,32 +366,53 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
     );
   }
 
-  Widget _buildWindingLevelPath(double contentWidth) {
+  Widget _buildWindingLevelPath({
+    required double contentWidth,
+    required double horizontalInset,
+    required double pathTopY,
+  }) {
     final reversedLevels = _levels.reversed.toList();
     const cardWidth = 178.0;
     const cardHeight = 198.0;
     const verticalPitch = 246.0;
+    const maxVerticalDrag = 300.0;
     final horizontalRange = math.max(0.0, contentWidth - cardWidth);
 
     // Alternating horizontal fractions (Stage 5 Center -> Stage 1 Left)
     final alignFractions = [0.5, 1.0, 0.0, 1.0, 0.0];
-    final totalHeight = (reversedLevels.length - 1) * verticalPitch + cardHeight + 16.0;
 
     Offset baseTopLeft(int index) {
       final frac = alignFractions[index % alignFractions.length];
-      return Offset(horizontalRange * frac, index * verticalPitch);
+      return Offset(
+        horizontalInset + horizontalRange * frac,
+        pathTopY + index * verticalPitch,
+      );
+    }
+
+    Offset clampCardOffset(Offset next, double baseDx) {
+      final m = _transformationController.value;
+      final scale = m.getMaxScaleOnAxis().clamp(0.20, 0.65).toDouble();
+      final tx = _viewportSize.width > 0
+          ? (_viewportSize.width - scale * _canvasWidthFor(_viewportSize.width)) /
+              2.0
+          : m.storage[12];
+      final (minDx, maxDx) = _horizontalCardOffsetBounds(baseDx, scale, tx);
+      return Offset(
+        next.dx.clamp(minDx, maxDx).toDouble(),
+        next.dy.clamp(-maxVerticalDrag, maxVerticalDrag).toDouble(),
+      );
     }
 
     Offset cardTopLeft(int index, int levelId) {
-      return baseTopLeft(index) + (_cardOffsets[levelId] ?? Offset.zero);
+      final base = baseTopLeft(index);
+      if (levelId == 1) return base;
+      final raw = _cardOffsets[levelId] ?? Offset.zero;
+      return base + clampCardOffset(raw, base.dx);
     }
 
-    return SizedBox(
-      width: contentWidth,
-      height: totalHeight,
-      child: AnimatedBuilder(
-        animation: _zLiftAnimation,
-        builder: (context, _) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_zLiftAnimation, _transformationController]),
+      builder: (context, _) {
           final anchors = List<Offset>.generate(reversedLevels.length, (index) {
             final level = reversedLevels[index];
             final topLeft = cardTopLeft(index, level.id);
@@ -321,10 +440,11 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
                 ),
               ),
 
-              // Slide-draggable stage cards (up, down, left, right)
+              // Slide-draggable stage cards (Stage 1 fixed; others bounded along thread)
               ...List.generate(reversedLevels.length, (index) {
                 final level = reversedLevels[index];
                 final isSelected = level.id == _selectedLevelId;
+                final isFixedStage = level.id == 1;
                 final pos = cardTopLeft(index, level.id);
                 final base = baseTopLeft(index);
 
@@ -336,21 +456,21 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
                     behavior: HitTestBehavior.opaque,
                     dragStartBehavior: DragStartBehavior.down,
                     onTap: () => _onLevelTap(level),
-                    onPanStart: (_) => _onLevelTap(level),
-                    onPanUpdate: (details) {
-                      setState(() {
-                        final current = _cardOffsets[level.id] ?? Offset.zero;
-                        final next = current + details.delta;
-                        final minDx = -base.dx - 24.0;
-                        final maxDx = (horizontalRange - base.dx) + 24.0;
-                        final minDy = -base.dy - 36.0;
-                        final maxDy = (totalHeight - cardHeight - base.dy) + 36.0;
-                        _cardOffsets[level.id] = Offset(
-                          next.dx.clamp(minDx, maxDx).toDouble(),
-                          next.dy.clamp(minDy, maxDy).toDouble(),
-                        );
-                      });
-                    },
+                    onPanStart: isFixedStage ? null : (_) => _onLevelTap(level),
+                    onPanUpdate: isFixedStage
+                        ? null
+                        : (details) {
+                            setState(() {
+                              final current = clampCardOffset(
+                                _cardOffsets[level.id] ?? Offset.zero,
+                                base.dx,
+                              );
+                              _cardOffsets[level.id] = clampCardOffset(
+                                current + details.delta,
+                                base.dx,
+                              );
+                            });
+                          },
                     child: _build3DLevelCard(level, isSelected),
                   ),
                 );
@@ -358,8 +478,7 @@ class _AdventureMapScreenState extends State<AdventureMapScreen>
             ],
           );
         },
-      ),
-    );
+      );
   }
 
   // 3D Box with Z-axis depth, multi-layered shadows, and smooth animation

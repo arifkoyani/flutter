@@ -29,7 +29,7 @@ void main() {
 
     // Verify Adventure Map upward flow markers, 10 levels, and no Reset View button
     expect(find.text('RESET VIEW'), findsNothing);
-    expect(find.text('THE SUMMIT • STAGE 10'), findsOneWidget);
+    expect(find.text('THE SUMMIT • STAGE 10'), findsNothing);
     expect(find.text('First Steps'), findsOneWidget);
     expect(find.text('PLAY • STAGE 1'), findsOneWidget);
     expect(find.byKey(const ValueKey('stage_1_3d_illustration')), findsOneWidget);
@@ -47,7 +47,7 @@ void main() {
     // Verify Adventure Map supports vertical drag on background via InteractiveViewer
     final viewer = tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
     final initialMatrix = viewer.transformationController!.value.clone();
-    await tester.dragFrom(const Offset(100, 420), const Offset(0, -140));
+    await tester.dragFrom(const Offset(100, 320), const Offset(0, 140));
     await tester.pump(const Duration(milliseconds: 400));
     expect(viewer.transformationController!.value, isNot(equals(initialMatrix)));
 
@@ -522,19 +522,19 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    final topCardFinder = find.byKey(const ValueKey('draggable_stage_card_10'));
-    final beforeDrag = tester.getTopLeft(topCardFinder);
-    final cardDrag = await tester.startGesture(tester.getCenter(topCardFinder));
-    await cardDrag.moveBy(const Offset(24, 18));
+    final stage2CardFinder = find.byKey(const ValueKey('draggable_stage_card_2'));
+    final beforeDrag = tester.getTopLeft(stage2CardFinder);
+    final cardDrag = await tester.startGesture(tester.getCenter(stage2CardFinder));
+    await cardDrag.moveBy(const Offset(-24, 18));
     await tester.pump();
-    await cardDrag.moveBy(const Offset(36, 28));
+    await cardDrag.moveBy(const Offset(-24, 18));
     await tester.pump();
     await cardDrag.up();
     await tester.pump(const Duration(milliseconds: 200));
-    final afterDrag = tester.getTopLeft(topCardFinder);
-    expect(afterDrag.dx, greaterThan(beforeDrag.dx));
+    final afterDrag = tester.getTopLeft(stage2CardFinder);
+    expect(afterDrag.dx, lessThan(beforeDrag.dx));
     expect(afterDrag.dy, greaterThan(beforeDrag.dy));
-    expect(find.text('PLAY • STAGE 10'), findsOneWidget);
+    expect(find.text('PLAY • STAGE 2'), findsOneWidget);
   });
 
   testWidgets('Completing Stage 5 unlocks Stage 6 and opens Frozen Peaks from levels.json',
@@ -621,5 +621,147 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('00:25'), findsOneWidget);
+  });
+
+  testWidgets(
+      'Adventure Map defaults to 0.65 zoom (0.20-0.65), locks Stage 1, and clamps card drag bounds',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: AdventureMapScreen(),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final viewer =
+        tester.widget<InteractiveViewer>(find.byType(InteractiveViewer));
+    expect(viewer.minScale, 0.20);
+    expect(viewer.maxScale, 0.65);
+    expect(
+      viewer.transformationController!.value.getMaxScaleOnAxis(),
+      closeTo(0.65, 0.001),
+    );
+    // Centered horizontally on 800px width: Stage 10 (center column) sits at x = 400
+    final stage10Finder = find.byKey(const ValueKey('draggable_stage_card_10'));
+    expect(tester.getCenter(stage10Finder).dx, closeTo(400.0, 0.5));
+
+    // Stage 1 is static and starts at bottom just above the CTA bar
+    final stage1Finder = find.byKey(const ValueKey('draggable_stage_card_1'));
+    final ctaFinder = find.text('PLAY • STAGE 1');
+    final stage1BottomAtLaunch = tester.getBottomLeft(stage1Finder).dy;
+    final ctaTop = tester.getTopLeft(ctaFinder).dy;
+    expect(stage1BottomAtLaunch, lessThan(ctaTop));
+    expect(stage1BottomAtLaunch, greaterThan(ctaTop - 90.0));
+
+    final stage1PositionedBefore = tester.widget<Positioned>(
+      find.ancestor(of: stage1Finder, matching: find.byType(Positioned)).first,
+    );
+    final drag1 = await tester.startGesture(tester.getCenter(stage1Finder));
+    await drag1.moveBy(const Offset(100, -100));
+    await tester.pump();
+    await drag1.up();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final stage1PositionedAfter = tester.widget<Positioned>(
+      find.ancestor(of: stage1Finder, matching: find.byType(Positioned)).first,
+    );
+    expect(stage1PositionedAfter.left, stage1PositionedBefore.left);
+    expect(stage1PositionedAfter.top, stage1PositionedBefore.top);
+
+    // At 0.65 zoom: Stage 2 drags left/right until 50% reaches screen edges & ±300 px vertically
+    final stage2Finder = find.byKey(const ValueKey('draggable_stage_card_2'));
+    final stage2PositionedBefore = tester.widget<Positioned>(
+      find.ancestor(of: stage2Finder, matching: find.byType(Positioned)).first,
+    );
+    final drag2Left = await tester.startGesture(tester.getCenter(stage2Finder));
+    await drag2Left.moveBy(const Offset(-2000, 0));
+    await tester.pump();
+    await drag2Left.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getCenter(stage2Finder).dx, closeTo(0.0, 0.5));
+
+    final drag2Right = await tester.startGesture(
+      Offset(20, tester.getCenter(stage2Finder).dy),
+    );
+    await drag2Right.moveBy(const Offset(2000, 0));
+    await tester.pump();
+    await drag2Right.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getCenter(stage2Finder).dx, closeTo(800.0, 0.5));
+
+    final drag2Up = await tester.startGesture(
+      Offset(770, tester.getCenter(stage2Finder).dy),
+    );
+    await drag2Up.moveBy(const Offset(0, -1200));
+    await tester.pump();
+    await drag2Up.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    final stage2PositionedAfterUp = tester.widget<Positioned>(
+      find.ancestor(of: stage2Finder, matching: find.byType(Positioned)).first,
+    );
+    expect(
+      stage2PositionedAfterUp.top! - stage2PositionedBefore.top!,
+      closeTo(-300.0, 0.01),
+    );
+
+    final drag2Down = await tester.startGesture(
+      Offset(770, tester.getCenter(stage2Finder).dy),
+    );
+    await drag2Down.moveBy(const Offset(0, 1200));
+    await tester.pump();
+    await drag2Down.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    final stage2PositionedAfterDown = tester.widget<Positioned>(
+      find.ancestor(of: stage2Finder, matching: find.byType(Positioned)).first,
+    );
+    expect(
+      stage2PositionedAfterDown.top! - stage2PositionedBefore.top!,
+      closeTo(300.0, 0.01),
+    );
+
+    // Zoom out to 0.20: stays centered horizontally (Stage 10 at x = 400)
+    // and keeps Stage 1 anchored just above the CTA bar
+    viewer.transformationController!.value = Matrix4.identity()
+      ..scaleByDouble(0.20, 0.20, 0.20, 1.0);
+    await tester.pump();
+    expect(tester.getCenter(stage10Finder).dx, closeTo(400.0, 0.5));
+    final stage1BottomAtMinZoom = tester.getBottomLeft(stage1Finder).dy;
+    expect(stage1BottomAtMinZoom, lessThan(ctaTop));
+    expect(stage1BottomAtMinZoom, greaterThan(ctaTop - 60.0));
+
+    // At 0.20 zoom: Stage 10 drags to 50% off right & left screen edges and +300 px vertically
+    final stage10PositionedBefore = tester.widget<Positioned>(
+      find.ancestor(of: stage10Finder, matching: find.byType(Positioned)).first,
+    );
+    final drag10Right = await tester.startGesture(tester.getCenter(stage10Finder));
+    await drag10Right.moveBy(const Offset(2000, 500));
+    await tester.pump();
+    await drag10Right.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getCenter(stage10Finder).dx, closeTo(800.0, 0.5));
+    final stage10PositionedAfter = tester.widget<Positioned>(
+      find.ancestor(of: stage10Finder, matching: find.byType(Positioned)).first,
+    );
+    expect(
+      stage10PositionedAfter.top! - stage10PositionedBefore.top!,
+      closeTo(300.0, 0.01),
+    );
+
+    final drag10Left = await tester.startGesture(
+      Offset(790, tester.getCenter(stage10Finder).dy),
+    );
+    await drag10Left.moveBy(const Offset(-2000, 0));
+    await tester.pump();
+    await drag10Left.up();
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.getCenter(stage10Finder).dx, closeTo(0.0, 0.5));
+
+    // Zooming back in to 0.65 keeps Stage 10 >= 50% inside the screen (never lost off-screen)
+    viewer.transformationController!.value = Matrix4.identity()
+      ..scaleByDouble(0.65, 0.65, 0.65, 1.0);
+    await tester.pump();
+    expect(tester.getCenter(stage10Finder).dx, greaterThanOrEqualTo(-0.5));
   });
 }
