@@ -135,7 +135,7 @@
         "bottom": 24
       },
       "totalArrows": 152,
-      "durationSeconds": 105
+      "durationSeconds": 140
     },
     {
       "id": 9,
@@ -152,7 +152,7 @@
         "bottom": 28
       },
       "totalArrows": 176,
-      "durationSeconds": 120
+      "durationSeconds": 170
     },
     {
       "id": 10,
@@ -169,7 +169,7 @@
         "bottom": 32
       },
       "totalArrows": 204,
-      "durationSeconds": 120
+      "durationSeconds": 250
     }
   ]
 }
