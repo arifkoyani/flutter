@@ -9,7 +9,6 @@ import 'package:my_android_app/main.dart';
 import 'package:my_android_app/models/puzzle_level.dart';
 import 'package:my_android_app/screens/adventure_map.dart';
 import 'package:my_android_app/screens/game_play_screen.dart';
-import 'package:my_android_app/widgets/gameplay_background.dart';
 import 'package:my_android_app/widgets/puzzle_board.dart';
 import 'package:my_android_app/screens/settings/setting.dart';
 import 'package:my_android_app/screens/settings/privacy_policy.dart';
@@ -767,7 +766,7 @@ void main() {
   });
 
   testWidgets(
-      'Gameplay gyroscope parallax shifts HUD and background while keeping PuzzleBoard stable',
+      'Gameplay gyroscope parallax applies only to PuzzleBoard cube while HUD and background stay fixed',
       (WidgetTester tester) async {
     await LevelsData.load();
 
@@ -793,17 +792,14 @@ void main() {
     expect(tilt.dx, greaterThan(0.0));
     expect(tilt.dy, greaterThan(0.0));
 
-    // PuzzleBoard stays anchored in its original center while HUD & background shift
+    // PuzzleBoard receives live parallax while staying centered, and HUD stays completely fixed
     final boardAfter = tester.getCenter(find.byType(PuzzleBoard));
     final hudAfter =
         tester.getCenter(find.byKey(const ValueKey('remaining_arrows_counter')));
     expect(boardAfter, boardBefore);
-    expect(hudAfter.dx, greaterThan(hudBefore.dx));
-    expect(hudAfter.dy, greaterThan(hudBefore.dy));
+    expect(hudAfter, hudBefore);
 
-    final bgWidget = tester.widget<GameplayBackground>(
-      find.byType(GameplayBackground),
-    );
-    expect(bgWidget.parallax, tilt);
+    final puzzleBoard = tester.widget<PuzzleBoard>(find.byType(PuzzleBoard));
+    expect(puzzleBoard.parallax, tilt);
   });
 }

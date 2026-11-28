@@ -273,12 +273,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        ValueListenableBuilder<Offset>(
-          valueListenable: _parallaxController,
-          builder: (context, parallax, _) {
-            return GameplayBackground(parallax: parallax);
-          },
-        ),
+        const GameplayBackground(),
         Scaffold(
           backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -334,7 +329,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
             if (constraints.maxHeight >= minNeeded) {
               return Column(
                 children: [
-                  _buildParallaxHud(),
+                  _buildHudColumn(),
                   Expanded(
                     child: ClipRect(
                       clipper: _BelowBannerClipper(),
@@ -357,7 +352,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: Column(
                 children: [
-                  _buildParallaxHud(),
+                  _buildHudColumn(),
                   ClipRect(
                     clipper: _BelowBannerClipper(),
                     child: Column(
@@ -586,26 +581,17 @@ class _GamePlayScreenState extends State<GamePlayScreen>
     );
   }
 
-  Widget _buildParallaxHud() {
-    return ValueListenableBuilder<Offset>(
-      valueListenable: _parallaxController,
-      builder: (context, parallax, child) {
-        return Transform.translate(
-          offset: Offset(parallax.dx * 7.0, parallax.dy * 5.0),
-          child: child,
-        );
-      },
-      child: Column(
-        children: [
-          const SizedBox(height: 8),
-          _buildLivesHud(),
-          const SizedBox(height: 6),
-          _buildTimerHud(),
-          const SizedBox(height: 6),
-          _buildArrowsLeftHud(),
-          const SizedBox(height: 6),
-        ],
-      ),
+  Widget _buildHudColumn() {
+    return Column(
+      children: [
+        const SizedBox(height: 8),
+        _buildLivesHud(),
+        const SizedBox(height: 6),
+        _buildTimerHud(),
+        const SizedBox(height: 6),
+        _buildArrowsLeftHud(),
+        const SizedBox(height: 6),
+      ],
     );
   }
 
@@ -642,20 +628,11 @@ class _GamePlayScreenState extends State<GamePlayScreen>
             child: IgnorePointer(
               child: Align(
                 alignment: const Alignment(0.0, 0.80),
-                child: ValueListenableBuilder<Offset>(
-                  valueListenable: _parallaxController,
-                  builder: (context, parallax, child) {
-                    return Transform.translate(
-                      offset: Offset(parallax.dx * 5.0, parallax.dy * 4.0),
-                      child: child,
-                    );
-                  },
-                  child: TapToRotateHintBar(
-                    key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
-                    totalDurationSeconds: _level.durationSeconds,
-                    remainingSeconds: _remainingSeconds,
-                    isActive: !_isGameOver && !_isVictory && !_isAppPaused,
-                  ),
+                child: TapToRotateHintBar(
+                  key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
+                  totalDurationSeconds: _level.durationSeconds,
+                  remainingSeconds: _remainingSeconds,
+                  isActive: !_isGameOver && !_isVictory && !_isAppPaused,
                 ),
               ),
             ),

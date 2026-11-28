@@ -556,19 +556,29 @@ class _PuzzleBoardState extends State<PuzzleBoard>
     }
   }
 
+  _Quat get _viewOrientation {
+    if (widget.parallax == Offset.zero) return _orientation;
+    final yaw = widget.parallax.dx * 0.11;
+    final pitch = widget.parallax.dy * 0.11;
+    final tiltQuat = _Quat.axisAngle(const _Vec3(1, 0, 0), pitch)
+        .multiplied(_Quat.axisAngle(const _Vec3(0, 1, 0), yaw));
+    return tiltQuat.multiplied(_orientation).normalized();
+  }
+
   CanvasArrow? _pickArrow(Offset tap, Size size) {
     CanvasArrow? tapped;
     var bestRank = double.infinity;
+    final activeOrientation = _viewOrientation;
 
     for (final face in CubeFace.values) {
       final frame = _FaceFrame.of(face);
-      final normal = _orientation.rotate(frame.normal);
+      final normal = activeOrientation.rotate(frame.normal);
       if (normal.z <= 0.05) continue;
 
       final screen = _buildFaceScreen(
         frame: frame,
         size: size,
-        orientation: _orientation,
+        orientation: activeOrientation,
         gridCols: widget.gridCols,
         gridRows: widget.gridRows,
         zoom: _zoom,
@@ -659,7 +669,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
                         gridRows: widget.gridRows,
                         arrows: widget.arrows,
                         walls: effectiveWalls,
-                        orientation: _orientation,
+                        orientation: _viewOrientation,
                         zoom: _zoom,
                         shakingArrowId: _shakingArrowId,
                         shakeOffset: _shakeAnimation.value,
@@ -891,8 +901,8 @@ class _ArrowCubePainter extends CustomPainter {
 
     final spanX = math.max(40.0, maxX - minX);
     final shadowCenter = Offset(
-      (minX + maxX) * 0.5 - spanX * 0.025 - parallax.dx * 9.0,
-      maxY + size.shortestSide * 0.042 * zoom - parallax.dy * 6.0,
+      (minX + maxX) * 0.5 - spanX * 0.025 - parallax.dx * 18.0,
+      maxY + size.shortestSide * 0.042 * zoom - parallax.dy * 12.0,
     );
 
     final outerRect = Rect.fromCenter(
