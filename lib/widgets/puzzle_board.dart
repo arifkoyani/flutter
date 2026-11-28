@@ -14,6 +14,7 @@ class PuzzleBoard extends StatefulWidget {
   final List<CanvasArrow> arrows;
   final List<MazeWall> walls;
   final Function(CanvasArrow arrow, bool isClear) onArrowTap;
+  final Offset parallax;
 
   const PuzzleBoard({
     super.key,
@@ -23,6 +24,7 @@ class PuzzleBoard extends StatefulWidget {
     required this.arrows,
     this.walls = const [],
     required this.onArrowTap,
+    this.parallax = Offset.zero,
   });
 
   @override
@@ -663,6 +665,7 @@ class _PuzzleBoardState extends State<PuzzleBoard>
                         shakeOffset: _shakeAnimation.value,
                         pressedArrowId: _pressedArrowId,
                         pressScale: _pressAnimation.value,
+                        parallax: widget.parallax,
                       ),
                     );
                   },
@@ -825,6 +828,7 @@ class _ArrowCubePainter extends CustomPainter {
   final double shakeOffset;
   final int? pressedArrowId;
   final double pressScale;
+  final Offset parallax;
 
   static const Color primaryOrange = Color(0xFFFF550D);
   static const _Vec3 _light = _Vec3(0.28, 0.86, 0.42);
@@ -840,6 +844,7 @@ class _ArrowCubePainter extends CustomPainter {
     required this.shakeOffset,
     required this.pressedArrowId,
     required this.pressScale,
+    this.parallax = Offset.zero,
   });
 
   @override
@@ -886,8 +891,8 @@ class _ArrowCubePainter extends CustomPainter {
 
     final spanX = math.max(40.0, maxX - minX);
     final shadowCenter = Offset(
-      (minX + maxX) * 0.5 - spanX * 0.025,
-      maxY + size.shortestSide * 0.042 * zoom,
+      (minX + maxX) * 0.5 - spanX * 0.025 - parallax.dx * 9.0,
+      maxY + size.shortestSide * 0.042 * zoom - parallax.dy * 6.0,
     );
 
     final outerRect = Rect.fromCenter(
@@ -925,10 +930,17 @@ class _ArrowCubePainter extends CustomPainter {
   void _paintFace(Canvas canvas, Size size, CubeFace face) {
     final frame = _FaceFrame.of(face);
     final normal = orientation.rotate(frame.normal);
-    final lightLen = math.sqrt(
-      _light.x * _light.x + _light.y * _light.y + _light.z * _light.z,
+    final dynamicLight = _Vec3(
+      _light.x + parallax.dx * 0.22,
+      _light.y - parallax.dy * 0.22,
+      _light.z,
     );
-    final light = _light * (1 / lightLen);
+    final lightLen = math.sqrt(
+      dynamicLight.x * dynamicLight.x +
+          dynamicLight.y * dynamicLight.y +
+          dynamicLight.z * dynamicLight.z,
+    );
+    final light = dynamicLight * (1 / lightLen);
     final shade = (0.42 + 0.58 * normal.dot(light).clamp(0.0, 1.0)).clamp(0.0, 1.0).toDouble();
 
     final corners = [

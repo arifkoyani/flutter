@@ -6,16 +6,21 @@ import 'package:material_ui/material_ui.dart';
 /// Full-screen minimalist gameplay background with subtle warm peach glow,
 /// soft wrapping ribbon, floating particles, and bottom-right orange wave.
 class GameplayBackground extends StatelessWidget {
-  const GameplayBackground({super.key});
+  final Offset parallax;
+
+  const GameplayBackground({
+    super.key,
+    this.parallax = Offset.zero,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return const Positioned.fill(
+    return Positioned.fill(
       child: IgnorePointer(
         child: RepaintBoundary(
           child: CustomPaint(
-            key: ValueKey('gameplay_background'),
-            painter: _GameplayBackgroundPainter(),
+            key: const ValueKey('gameplay_background'),
+            painter: _GameplayBackgroundPainter(parallax: parallax),
           ),
         ),
       ),
@@ -24,7 +29,9 @@ class GameplayBackground extends StatelessWidget {
 }
 
 class _GameplayBackgroundPainter extends CustomPainter {
-  const _GameplayBackgroundPainter();
+  final Offset parallax;
+
+  const _GameplayBackgroundPainter({this.parallax = Offset.zero});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -50,7 +57,10 @@ class _GameplayBackgroundPainter extends CustomPainter {
     );
 
     // Soft ambient warm peach glow behind the main 3D cube area.
-    final cubeCenter = Offset(w * 0.5, h * 0.50);
+    final cubeCenter = Offset(
+      w * 0.5 - parallax.dx * 16.0,
+      h * 0.50 - parallax.dy * 16.0,
+    );
     canvas.drawRect(
       rect,
       Paint()
@@ -67,7 +77,10 @@ class _GameplayBackgroundPainter extends CustomPainter {
     );
 
     // 2. Subtle peach curved ribbon/glow wrapping behind the sides of the cube.
+    canvas.save();
+    canvas.translate(-parallax.dx * 24.0, -parallax.dy * 20.0);
     _drawSideRibbonGlow(canvas, w, h);
+    canvas.restore();
 
     // 3. Compact abstract curved orange wave emerging from the bottom-right corner.
     _drawBottomRightWave(canvas, w, h);
@@ -141,6 +154,8 @@ class _GameplayBackgroundPainter extends CustomPainter {
 
   void _drawBottomRightWave(Canvas canvas, double w, double h) {
     // Soft outer pastel peach halo wave (50% compact corner scale)
+    canvas.save();
+    canvas.translate(-parallax.dx * 10.0, -parallax.dy * 9.0);
     final outerWave = Path()
       ..moveTo(w * 0.67, h)
       ..cubicTo(
@@ -174,8 +189,11 @@ class _GameplayBackgroundPainter extends CustomPainter {
           ],
         ),
     );
+    canvas.restore();
 
     // Main vibrant smooth orange organic wave from bottom-right corner
+    canvas.save();
+    canvas.translate(-parallax.dx * 15.0, -parallax.dy * 13.0);
     final mainWave = Path()
       ..moveTo(w * 0.73, h)
       ..cubicTo(
@@ -211,10 +229,12 @@ class _GameplayBackgroundPainter extends CustomPainter {
           const [0.0, 0.58, 1.0],
         ),
     );
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _GameplayBackgroundPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _GameplayBackgroundPainter oldDelegate) =>
+      oldDelegate.parallax != parallax;
 }
 
 enum _HintSlotPhase { shiftSide, rotateAngle, zoomInOut, none }

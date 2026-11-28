@@ -8,6 +8,7 @@ import '../widgets/gameplay_background.dart';
 import '../widgets/puzzle_board.dart';
 import '../database/game_database.dart';
 import '../services/audio_service.dart';
+import '../services/gyro_parallax_controller.dart';
 import '../services/preferences_service.dart';
 import 'settings/setting.dart';
 
@@ -39,13 +40,18 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   bool _isAppPaused = false;
 
   Timer? _countdownTimer;
+  late final GyroParallaxController _parallaxController;
   late final AnimationController _mistakeFlashController;
   late final Animation<double> _mistakeFlashAnimation;
+
+  @visibleForTesting
+  GyroParallaxController get parallaxController => _parallaxController;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _parallaxController = GyroParallaxController()..start();
     _mistakeFlashController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1000),
@@ -86,6 +92,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _countdownTimer?.cancel();
+    _parallaxController.dispose();
     _mistakeFlashController.dispose();
     super.dispose();
   }
@@ -98,6 +105,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
       case AppLifecycleState.paused:
       case AppLifecycleState.hidden:
       case AppLifecycleState.detached:
+        _parallaxController.pause();
         if (!_isAppPaused) {
           setState(() {
             _isAppPaused = true;
@@ -107,6 +115,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
         }
         break;
       case AppLifecycleState.resumed:
+        _parallaxController.resume();
         if (_isAppPaused) {
           setState(() {
             _isAppPaused = false;
@@ -264,7 +273,12 @@ class _GamePlayScreenState extends State<GamePlayScreen>
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        const GameplayBackground(),
+        ValueListenableBuilder<Offset>(
+          valueListenable: _parallaxController,
+          builder: (context, parallax, _) {
+            return GameplayBackground(parallax: parallax);
+          },
+        ),
         Scaffold(
           backgroundColor: Colors.transparent,
       appBar: AppBar(
@@ -320,13 +334,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
             if (constraints.maxHeight >= minNeeded) {
               return Column(
                 children: [
-                  const SizedBox(height: 8),
-                  _buildLivesHud(),
-                  const SizedBox(height: 6),
-                  _buildTimerHud(),
-                  const SizedBox(height: 6),
-                  _buildArrowsLeftHud(),
-                  const SizedBox(height: 6),
+                  _buildParallaxHud(),
                   Expanded(
                     child: ClipRect(
                       clipper: _BelowBannerClipper(),
@@ -349,13 +357,7 @@ class _GamePlayScreenState extends State<GamePlayScreen>
               padding: const EdgeInsets.symmetric(vertical: 8.0),
               child: Column(
                 children: [
-                  const SizedBox(height: 8),
-                  _buildLivesHud(),
-                  const SizedBox(height: 6),
-                  _buildTimerHud(),
-                  const SizedBox(height: 6),
-                  _buildArrowsLeftHud(),
-                  const SizedBox(height: 6),
+                  _buildParallaxHud(),
                   ClipRect(
                     clipper: _BelowBannerClipper(),
                     child: Column(
@@ -584,18 +586,47 @@ class _GamePlayScreenState extends State<GamePlayScreen>
     );
   }
 
+  Widget _buildParallaxHud() {
+    return ValueListenableBuilder<Offset>(
+      valueListenable: _parallaxController,
+      builder: (context, parallax, child) {
+        return Transform.translate(
+          offset: Offset(parallax.dx * 7.0, parallax.dy * 5.0),
+          child: child,
+        );
+      },
+      child: Column(
+        children: [
+          const SizedBox(height: 8),
+          _buildLivesHud(),
+          const SizedBox(height: 6),
+          _buildTimerHud(),
+          const SizedBox(height: 6),
+          _buildArrowsLeftHud(),
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+
   Widget _buildPuzzleBoard() {
     return Stack(
       alignment: Alignment.center,
       children: [
-        PuzzleBoard(
-          key: ValueKey(_level.id),
-          levelId: _level.id,
-          gridCols: _level.gridCols,
-          gridRows: _level.gridRows,
-          arrows: _arrows,
-          walls: _level.id == 1 ? const [] : _level.walls,
-          onArrowTap: _onArrowTapped,
+        ValueListenableBuilder<Offset>(
+          valueListenable: _parallaxController,
+          builder: (context, parallax, _) {
+            return PuzzleBoard(
+              key: ValueKey(_level.id),
+              levelId: _level.id,
+              gridCols: _level.gridCols,
+              gridRows: _level.gridRows,
+              arrows: _arrows,
+              walls: _level.id == 1 ? const [] : _level.walls,
+              onArrowTap: _onArrowTapped,
+              parallax: parallax,
+            );
+          },
         ),
         if (_level.id <= 2) ...[
           Positioned.fill(
@@ -611,11 +642,20 @@ class _GamePlayScreenState extends State<GamePlayScreen>
             child: IgnorePointer(
               child: Align(
                 alignment: const Alignment(0.0, 0.80),
-                child: TapToRotateHintBar(
-                  key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
-                  totalDurationSeconds: _level.durationSeconds,
-                  remainingSeconds: _remainingSeconds,
-                  isActive: !_isGameOver && !_isVictory && !_isAppPaused,
+                child: ValueListenableBuilder<Offset>(
+                  valueListenable: _parallaxController,
+                  builder: (context, parallax, child) {
+                    return Transform.translate(
+                      offset: Offset(parallax.dx * 5.0, parallax.dy * 4.0),
+                      child: child,
+                    );
+                  },
+                  child: TapToRotateHintBar(
+                    key: ValueKey('tap_to_rotate_${_level.id}_$_levelRunCount'),
+                    totalDurationSeconds: _level.durationSeconds,
+                    remainingSeconds: _remainingSeconds,
+                    isActive: !_isGameOver && !_isVictory && !_isAppPaused,
+                  ),
                 ),
               ),
             ),

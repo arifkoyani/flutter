@@ -9,6 +9,7 @@ import 'package:my_android_app/main.dart';
 import 'package:my_android_app/models/puzzle_level.dart';
 import 'package:my_android_app/screens/adventure_map.dart';
 import 'package:my_android_app/screens/game_play_screen.dart';
+import 'package:my_android_app/widgets/gameplay_background.dart';
 import 'package:my_android_app/widgets/puzzle_board.dart';
 import 'package:my_android_app/screens/settings/setting.dart';
 import 'package:my_android_app/screens/settings/privacy_policy.dart';
@@ -763,5 +764,46 @@ void main() {
       ..scaleByDouble(0.65, 0.65, 0.65, 1.0);
     await tester.pump();
     expect(tester.getCenter(stage10Finder).dx, greaterThanOrEqualTo(-0.5));
+  });
+
+  testWidgets(
+      'Gameplay gyroscope parallax shifts HUD and background while keeping PuzzleBoard stable',
+      (WidgetTester tester) async {
+    await LevelsData.load();
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: GamePlayScreen(levelId: 1),
+      ),
+    );
+    await tester.pump();
+
+    final state = tester.state(find.byType(GamePlayScreen)) as dynamic;
+    final boardBefore = tester.getCenter(find.byType(PuzzleBoard));
+    final hudBefore =
+        tester.getCenter(find.byKey(const ValueKey('remaining_arrows_counter')));
+
+    // Feed gyroscope + accelerometer tilt samples
+    state.parallaxController.addAccelerometerSample(0.0, 6.0, 7.8);
+    state.parallaxController.addAccelerometerSample(-3.0, 7.2, 6.2);
+    state.parallaxController.addGyroSample(1.2, 2.0, dt: 0.05);
+    await tester.pump();
+
+    final tilt = state.parallaxController.value as Offset;
+    expect(tilt.dx, greaterThan(0.0));
+    expect(tilt.dy, greaterThan(0.0));
+
+    // PuzzleBoard stays anchored in its original center while HUD & background shift
+    final boardAfter = tester.getCenter(find.byType(PuzzleBoard));
+    final hudAfter =
+        tester.getCenter(find.byKey(const ValueKey('remaining_arrows_counter')));
+    expect(boardAfter, boardBefore);
+    expect(hudAfter.dx, greaterThan(hudBefore.dx));
+    expect(hudAfter.dy, greaterThan(hudBefore.dy));
+
+    final bgWidget = tester.widget<GameplayBackground>(
+      find.byType(GameplayBackground),
+    );
+    expect(bgWidget.parallax, tilt);
   });
 }
